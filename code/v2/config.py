@@ -4,11 +4,13 @@ CONFIG FILE FOR CARBON CONTAINERS
 
 
 
-MIGRATION_MACHINES = {  "155.98.38.48": {"host": "155.98.38.48", "cpu": 8, "memGB": 12, "basepow":25000 },
-                        "155.98.36.98": {"host": "155.98.36.98", "cpu": 32, "memGB": 63, "basepow": 100000 },
-                        "155.98.39.98": {"host": "155.98.39.98", "cpu": 2, "memGB": 2, "basepow": 6250 }}
-
-
+##MIGRATION_MACHINES = {  "155.98.38.48": {"host": "155.98.38.48", "cpu": 8, "memGB": 12, "basepow":25000 },
+##                        "155.98.36.98": {"host": "155.98.36.98", "cpu": 32, "memGB": 63, "basepow": 100000 },
+##                        "155.98.39.98": {"host": "155.98.39.98", "cpu": 2, "memGB": 2, "basepow": 6250 }}
+##
+MIGRATION_MACHINES = {
+    '127.0.0.1': {'cpu': 4, 'host': '127.0.0.1', 'basepow': 25000}  # 'cpu' an verfügbare VM-Cores anpassen (z.B. via nproc)
+}
 
 CO2_SIGNAL_KEY = "/users/jthiede/co2key.txt"
 
@@ -35,7 +37,7 @@ MONITOR VALUES
 IP = "localhost"
 PORT = "1995"
 
-MODEL = "/users/jthiede/model.pkl"
+MODEL = "../../model.pkl"
 MODEL_BASE_POW = 100000
 
 
@@ -57,7 +59,7 @@ MIGRATION_PORT = 8888
 CARBON POLICY VALUES
 '''
 
-UPDATE_PERIOD = 300
+UPDATE_PERIOD = 15
 SCALEUP_THRESH = 0.5
 
 
@@ -71,8 +73,8 @@ PORT = 1994
 
 WORKING_DIR = "./"
 
-OUTPUT = "/users/jthiede/eff/carbon"
-M_OUTPUT = "/users/jthiede/eff/migrations"
+OUTPUT = "./logs/carbon"
+M_OUTPUT = "./logs/migrations"
 
 
 '''
@@ -85,7 +87,8 @@ CARBON DATA FUNCTION: REPLACE WITH YOUR IMPLEMENTATION
 
 first_5_hours = [300.91, 307.31, 307.78, 313.35, 317.95]
 def getCarbonIntensity():
-    return first_5_hours[0]
+    #return first_5_hours[0]
+    return 1000
 
 # Different funcs for different APIs
 # in: api key

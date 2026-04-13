@@ -14,7 +14,7 @@ import grpc
 import front_pb2
 import front_pb2_grpc
 
-# IP = "localhost"
+IP = "localhost"
 # IP = "198.22.255.30"
 # IP = "198.22.255.31"
 # IP = "198.22.255.16"
@@ -25,7 +25,7 @@ import front_pb2_grpc
 
 
 # IP = "155.98.38.17"
-IP = "155.98.39.120"
+# IP = "155.98.39.120"
 
 PORT = 1994
 
@@ -71,7 +71,7 @@ if __name__ == "__main__":
 
 
     #do_register("c1","none","0.0", "stopped")
-    do_register("c1", "thresh", "1.0", "running")
+    do_register("mytestcontainer", "thresh", "0.1", "running")
     # do_register("c1", "none", "1.0", "running")
     #do_deregister("c1")
     # do_start("c1")

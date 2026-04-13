@@ -115,7 +115,7 @@ class CC_Monitor(daemon):
                 print(self.conts)
 
                 self.procMonitor()
-                print("MIGRATION")
+                print("CONTROL ACTION")
                 # self.migration()
                 with grpc.insecure_channel("localhost:" + config.CONTROLLER_PORT) as c:
                     stub = controller_pb2_grpc.ControllerStub(c)
@@ -188,15 +188,17 @@ class CC_Monitor(daemon):
             pid, counters = q.get()
             pidC, cpu = q2.get()
             
-            try:
-                for e in counters:
-                    #print(e)
-                    if counters[e] == "<not counted>":
+            for e in events:
+                val = counters.get(e, 0.0)
+                if isinstance(val, str):
+                    val = val.strip()
+                if val in ["<not counted>", "<not supported>", "", None]:
+                    counters[e] = 0.0
+                else:
+                    try:
+                        counters[e] = float(val)
+                    except Exception:
                         counters[e] = 0.0
-                    else:
-                        counters[e] = float(counters[e])
-            except Exception as ex:
-                continue
             # print("q.get done")
             cont = pids[pid]
             # count = Counter()
@@ -228,20 +230,28 @@ class CC_Monitor(daemon):
             with open(config.WORKING_DIR + "/perfstat.test", "w") as f:
                 f.write("Hello")
 
-            events = ["task-clock", "context-switches", "cpu-migrations", "page-faults", "cycles", "instructions", "branches", "branch-misses"]
             cmd = ["perf", "stat", "-p", str(pid), "-x", ",", "sleep", "5"]
             out = subprocess.Popen(cmd, stderr=subprocess.PIPE).communicate()[1]
-            #top -b -n 2 -d 0.2 -p 6962 | tail -1 | awk '{print $9}'
-            # top = ["top", "-b", "-n", "0.5", "-p", str(pid)]
-
-            top = "top -b -n 2 -d 0.5 -p" + str(pid) + " | tail -1 | awk '{print $9}'"
-            cpu = subprocess.Popen(top, shell=True, stdout=subprocess.PIPE).communicate()[0]
-            cpu = float(cpu.decode("utf-8").strip())
+            # Read CPU% in a robust way; returns blank if process already exited.
+            ps_cpu_cmd = ["ps", "-p", str(pid), "-o", "%cpu="]
+            cpu_raw = subprocess.Popen(ps_cpu_cmd, stdout=subprocess.PIPE).communicate()[0]
+            cpu_txt = cpu_raw.decode("utf-8").strip()
+            cpu = float(cpu_txt) if cpu_txt else 0.0
 
             cpuQ.put((pid,cpu))
 
-            lines = [l.replace("b'", "").split(",")[0] for l in str(out).split("\\n") if l != "'" ]
+            decoded = out.decode("utf-8", errors="ignore")
+            lines = []
+            for l in decoded.splitlines():
+                if "," not in l:
+                    continue
+                val = l.split(",", 1)[0].strip()
+                if val:
+                    lines.append(val)
             d = dict(zip(events, lines))
+            for e in events:
+                if e not in d:
+                    d[e] = 0.0
             
             with open(config.WORKING_DIR + "/procOut/"+str(pid)+"Out.log", 'w') as f:
                 f.write(str(lines))
@@ -251,6 +261,35 @@ class CC_Monitor(daemon):
 
             with open(config.WORKING_DIR + "/perfstat_excep.log", "w") as f:
                 f.write(str(ex))
+            # Always publish defaults so parent process cannot block forever on queue.get().
+            cpuQ.put((pid, 0.0))
+            q.put((pid, dict(zip(events, [0.0] * len(events)))))
+
+    def getContainerCpu(self, groupMap):
+        cpuConts = {}
+        containerPids = {}
+
+        for pid, cont in groupMap.items():
+            if cont in containerPids:
+                containerPids[cont].append(pid)
+            else:
+                containerPids[cont] = [pid]
+
+        for cont, pids in containerPids.items():
+            cmd = ["ps", "-p", ",".join(pids), "-o", "%cpu="]
+            out = subprocess.Popen(cmd, stdout=subprocess.PIPE).communicate()[0]
+            cpu_total = 0.0
+            for line in out.decode("utf-8").splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    cpu_total += float(line)
+                except Exception:
+                    continue
+            cpuConts[cont] = cpu_total
+
+        return cpuConts
 
     def powerEstimate(self, conts, procs):
         try:
@@ -268,7 +307,24 @@ class CC_Monitor(daemon):
                 feats = list(map(lambda x: x / (config.UPDATE_PERIOD / 5), feats))
                 feats = [feats]
                 # print(feats)
-                pred = float(model.predict(feats))
+                pred_raw = model.predict(feats)
+                # sklearn may return scalar-like, [x], or [[x]] depending on model/version
+                if hasattr(pred_raw, "item"):
+                    try:
+                        pred = float(pred_raw.item())
+                    except Exception:
+                        if hasattr(pred_raw, "reshape"):
+                            pred = float(pred_raw.reshape(-1)[0])
+                        else:
+                            pred = float(pred_raw)
+                elif isinstance(pred_raw, (list, tuple)):
+                    first = pred_raw[0]
+                    if isinstance(first, (list, tuple)):
+                        pred = float(first[0])
+                    else:
+                        pred = float(first)
+                else:
+                    pred = float(pred_raw)
                 # print(pred)
                 print(config.MIGRATION_MACHINES[self.ip]["basepow"])
                 power_marg = (pred - config.MODEL_BASE_POW) + config.MIGRATION_MACHINES[self.ip]["basepow"]
@@ -291,6 +347,7 @@ class CC_Monitor(daemon):
                 self.conts[cont]["current"]["carbon"] = carb
                 self.conts[cont]["current"]["joules"] = energy
 
+                os.makedirs(config.OUTPUT, exist_ok=True)
                 with open(config.OUTPUT+"/"+str(time)+".txt", "w") as f:
                     f.write(str(carb))
 
@@ -319,11 +376,17 @@ class CC_Monitor(daemon):
                 cat = ["cat", "/proc/"+str(pid)+"/cgroup" ]
                 systemd = ["systemctl"]
                 catOut = str(subprocess.Popen(cat, stdout=subprocess.PIPE).communicate()[0])
-                try:
-                    group = re.findall(r"lxc/([\w-]+)", str(catOut))[0]
-                except Exception as e:
-                    continue
-        
+                # Versuche erst das alte Muster (falls doch noch was altes läuft)
+                match = re.search(r"lxc/([\w-]+)", str(catOut))
+                if not match:
+                    # Versuche das neue Muster für Cgroups v2 (sucht nach lxc.payload.<NAME>)
+                    match = re.search(r"lxc\.payload\.([\w-]+)", str(catOut))
+
+                if match:
+                    group = match.group(1)
+                else:
+                    continue        
+                
                 if group in self.conts:
                     groupMap[pid] = group
                 else:
@@ -336,6 +399,11 @@ class CC_Monitor(daemon):
             print(groupMap)
             print(groupMap)
             conts, contsCPU = self.getPerfEvents(groupMap)
+            cpuFallback = self.getContainerCpu(groupMap)
+            for cont, fb in cpuFallback.items():
+                val = contsCPU.get(cont, None)
+                if val is None or val == 0 or (isinstance(val, float) and math.isnan(val)):
+                    contsCPU[cont] = fb
 
             with open(config.WORKING_DIR + "/procMonitor.out", "w") as f:
                 f.write(str(conts))

@@ -46,7 +46,7 @@ class Front(front_pb2_grpc.FrontServicer):
                    "policy":policy, 
                    "threshold":float(thresh),
                     "status":status, 
-                    "location": ip, 
+                    "location": self.ip, 
                     "cpu_cores": config.MIGRATION_MACHINES[str(self.ip)]["cpu"],
                     "current": {"carbon": 0, "joules":0, "cpu":0}, 
                     "totals": {"carbon_total": 0, "joules_total": 0}

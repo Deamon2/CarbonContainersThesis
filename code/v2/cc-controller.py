@@ -94,12 +94,6 @@ class Controller(controller_pb2_grpc.ControllerServicer):
         self.conts = json.loads(request.conts)
         print(self.conts)
 
-        print("UPDATE STATS")
-        for cont in self.conts:
-            with grpc.insecure_channel("localhost:" + config.RECORD_PORT) as c:
-                stub = records_pb2_grpc.RecordsStub(c)
-                resp = stub.Update(records_pb2.UpdateRequest(name=cont, value="status", setts="migrating"))
-
         print("CHECK")
         t = Thread(target=self.migration,args=() )
         t.start()
@@ -175,6 +169,10 @@ class Controller(controller_pb2_grpc.ControllerServicer):
                     if target:
                         print("Migrate to " + str(target))
                         self.migrate_send(cont,target)
+                    else:
+                        with grpc.insecure_channel("localhost:" + config.RECORD_PORT) as c:
+                            stub = records_pb2_grpc.RecordsStub(c)
+                            resp = stub.Update(records_pb2.UpdateRequest(name=cont, value="status", setts="running"))
                     pass
 
                 # scale down
@@ -189,6 +187,10 @@ class Controller(controller_pb2_grpc.ControllerServicer):
                     if target:
                         print("Migrate to " + str(target))
                         self.migrate_send(cont,target)
+                    else:
+                        with grpc.insecure_channel("localhost:" + config.RECORD_PORT) as c:
+                            stub = records_pb2_grpc.RecordsStub(c)
+                            resp = stub.Update(records_pb2.UpdateRequest(name=cont, value="status", setts="running"))
                     pass
                 
                 # # scale down
@@ -416,31 +418,33 @@ class Controller(controller_pb2_grpc.ControllerServicer):
 
     def scale_up(self,cont,currentCpu):
         print("SCALE UP")
-        command = ["lxc-cgroup", "-n", str(cont), "cpuset.cpus", "0-"+str( int(currentCpu * 1.25))]
+        new_cpu = max(1, int(currentCpu * 1.25))
+        command = ["lxc-cgroup", "-n", str(cont), "cpuset.cpus", "0-"+str(new_cpu - 1)]
         subprocess.Popen(command).communicate()
         with grpc.insecure_channel("localhost:" + config.RECORD_PORT) as c:
-           stub = records_pb2_grpc.RecordsStub(c)
-           resp = stub.Update(records_pb2.UpdateRequest(name=cont, value="cpu_cores", setts=str(int(currentCpu * 1.25))))
+            stub = records_pb2_grpc.RecordsStub(c)
+            resp = stub.Update(records_pb2.UpdateRequest(name=cont, value="cpu_cores", setts=str(new_cpu)))
 
         with grpc.insecure_channel("localhost:" + config.RECORD_PORT) as c:
-           stub = records_pb2_grpc.RecordsStub(c)
-           resp = stub.Update(records_pb2.UpdateRequest(name=cont, value="status", setts="running"))
-        return int(currentCpu * 1.25)
+            stub = records_pb2_grpc.RecordsStub(c)
+            resp = stub.Update(records_pb2.UpdateRequest(name=cont, value="status", setts="running"))
+        return new_cpu
         pass
 
     def scale_down(self,cont,currentCpu):
         print("SCALE DOWN")
-        command = ["lxc-cgroup", "-n", str(cont), "cpuset.cpus", "0-"+str( int(currentCpu * 0.75))]
+        new_cpu = max(1, int(currentCpu * 0.75))
+        command = ["lxc-cgroup", "-n", str(cont), "cpuset.cpus", "0-"+str(new_cpu - 1)]
         subprocess.Popen(command).communicate()
         with grpc.insecure_channel("localhost:" + config.RECORD_PORT) as c:
-           stub = records_pb2_grpc.RecordsStub(c)
-           resp = stub.Update(records_pb2.UpdateRequest(name=cont, value="cpu_cores", setts=str(int(currentCpu * 0.75))))
+            stub = records_pb2_grpc.RecordsStub(c)
+            resp = stub.Update(records_pb2.UpdateRequest(name=cont, value="cpu_cores", setts=str(new_cpu)))
         
         with grpc.insecure_channel("localhost:" + config.RECORD_PORT) as c:
-           stub = records_pb2_grpc.RecordsStub(c)
-           resp = stub.Update(records_pb2.UpdateRequest(name=cont, value="status", setts="running"))
+            stub = records_pb2_grpc.RecordsStub(c)
+            resp = stub.Update(records_pb2.UpdateRequest(name=cont, value="status", setts="running"))
 
-        return int(currentCpu * 0.75)
+        return new_cpu
         pass
 
 
