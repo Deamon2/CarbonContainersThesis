@@ -90,7 +90,7 @@ class CC_Monitor(daemon):
 
                 #print("remove remotes")
                 remotes = []
-                nonRunning = []
+                not_actionable = []
                 for cont in self.conts:
                     #print(type(self.conts[cont]["location"]))
                     #print(type(self.ip))
@@ -101,20 +101,30 @@ class CC_Monitor(daemon):
                     if self.conts[cont]["location"] != self.ip:
                         remotes.append(cont)
                         continue
-                    if self.conts[cont]["status"].lower() != "running":
-                        nonRunning.append(cont)
+
+                    status = str(self.conts[cont].get("status", "")).lower()
+                    # Controller should only act on running/frozen containers.
+                    if status not in ["running", "frozen"]:
+                        not_actionable.append(cont)
 
                 #print("remotes")
                 #print(remotes)
-                removes = set(remotes + nonRunning)
+                removes = set(remotes + not_actionable)
                 for rem in removes:
                     del self.conts[rem]
+
+                active_conts = {}
+                for cont, data in self.conts.items():
+                    status = str(data.get("status", "")).lower()
+                    if status == "frozen":
+                        continue
+                    active_conts[cont] = data
 
                 
                 
                 print(self.conts)
 
-                self.procMonitor()
+                self.procMonitor(active_conts)
                 print("CONTROL ACTION")
                 # self.migration()
                 with grpc.insecure_channel("localhost:" + config.CONTROLLER_PORT) as c:
@@ -348,7 +358,7 @@ class CC_Monitor(daemon):
                 self.conts[cont]["current"]["joules"] = energy
 
                 os.makedirs(config.OUTPUT, exist_ok=True)
-                with open(config.OUTPUT+"/"+str(time)+".txt", "w") as f:
+                with open(config.OUTPUT+"/"+str(self.time)+".txt", "w") as f:
                     f.write(str(carb))
 
                 with grpc.insecure_channel("localhost:" + config.RECORD_PORT) as c:
@@ -361,7 +371,7 @@ class CC_Monitor(daemon):
             with open(config.WORKING_DIR + "/model_excep.log", "w") as f:
                 f.write(str(ex))
 
-    def procMonitor(self):
+    def procMonitor(self, active_conts=None):
         try:
             print("MONITOR")
             # while True:
@@ -371,6 +381,8 @@ class CC_Monitor(daemon):
             with open(config.WORKING_DIR + "/monitor.test", "w") as f:
                 f.write("Hello")
             pids = self.getAllPids()
+            if active_conts is None:
+                active_conts = self.conts
             groupMap = {}
             for pid in pids:
                 cat = ["cat", "/proc/"+str(pid)+"/cgroup" ]
@@ -387,7 +399,7 @@ class CC_Monitor(daemon):
                 else:
                     continue        
                 
-                if group in self.conts:
+                if group in active_conts:
                     groupMap[pid] = group
                 else:
                     continue

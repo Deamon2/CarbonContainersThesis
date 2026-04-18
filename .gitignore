@@ -3,6 +3,7 @@
 
 __pycache__
 logs
+procOut
 
 venv.txt
 
@@ -10,3 +11,4 @@ venv.txt
 *.test
 
 .codex
+.vscode

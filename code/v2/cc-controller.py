@@ -70,6 +70,22 @@ class Controller(controller_pb2_grpc.ControllerServicer):
         self.time = 0
         pass
 
+    def update_record_field(self, cont, field, value):
+        if isinstance(value, (dict, list)):
+            setts = json.dumps(value)
+        else:
+            setts = str(value)
+        with grpc.insecure_channel("localhost:" + config.RECORD_PORT) as c:
+            stub = records_pb2_grpc.RecordsStub(c)
+            resp = stub.Update(records_pb2.UpdateRequest(name=cont, value=field, setts=setts))
+        return resp
+
+    def set_container_state(self, cont, updates):
+        with grpc.insecure_channel("localhost:" + config.RECORD_PORT) as c:
+            stub = records_pb2_grpc.RecordsStub(c)
+            resp = stub.Update(records_pb2.UpdateRequest(name=cont, value="ALL", setts=json.dumps(updates)))
+        return resp
+
     def Migrate(self, request, context):
 
         # with grpc.insecure_channel("localhost:" + config.RECORD_PORT) as c:
@@ -121,15 +137,8 @@ class Controller(controller_pb2_grpc.ControllerServicer):
           
             # ENERGY EFFICIENT POLICY
             elif self.conts[cont]["policy"].lower() == "thresh":
-                '''
-                if throttled and below thresh
-                    size up
-                elif carbon exceeded
-                    size down
-                elif nextusage < (nextSmallerCPU / curCPU)*100
-                    size down
-                '''
-
+                
+                # Load current metrics and configuration
                 cpu = self.conts[cont]["current"]["cpu"]
                 carb = self.conts[cont]["current"]["carbon"]
                 thresh = self.conts[cont]["threshold"]
@@ -138,82 +147,101 @@ class Controller(controller_pb2_grpc.ControllerServicer):
                 cur_cores = int(self.conts[cont]["cpu_cores"])
                 max_cores = config.MIGRATION_MACHINES[self.conts[cont]["location"]]["cpu"]
 
-                if cur_cores == max_cores:
-                    scale_up = True
-                else:
-                    scale_up = False
+                if self.conts[cont]["status"] == "frozen":
+                    resume_thresh = thresh * (1 - config.SCALEUP_THRESH)
+                    current_host_carbon = float(config.getCarbonIntensity())
+                    last_cpu = float(self.conts[cont].get("freeze_last_cpu", 0.0))
+                    last_joules = float(self.conts[cont].get("freeze_last_joules", 0.0))
+                    freeze_cycles = int(self.conts[cont].get("freeze_cycles", 0))
+
+                    # Use the last measured interval before freeze as the load basis.
+                    last_energy_kwh = max(0.0, last_joules / 1000.0)
+                    cpu_factor = max(0.25, min(1.0, last_cpu / 100.0))
+                    projected_energy_kwh = last_energy_kwh * cpu_factor
+                    projected_carbon = current_host_carbon * projected_energy_kwh
+
+                    print(
+                        f"[{cont}] FROZEN CHECK: projected carbon {projected_carbon:.4f}, "
+                        f"resume threshold {resume_thresh:.4f}"
+                    )
+
+                    if freeze_cycles >= config.MAX_FROZEN_CYCLES:
+                        print(f"[{cont}] Frozen for {freeze_cycles} cycles - RESUME")
+                        self.resume_container(cont)
+                    elif projected_carbon < resume_thresh:
+                        print(f"[{cont}] Carbon improved - RESUME")
+                        self.resume_container(cont)
+                    else:
+                        next_cycles = freeze_cycles + 1
+                        print(f"[{cont}] Keeping container frozen (cycle {next_cycles}/{config.MAX_FROZEN_CYCLES})")
+                        self.update_record_field(cont, "freeze_cycles", next_cycles)
+                    continue
+
+                # True means scaling is possible on the current host.
+                scale_up = (cur_cores < max_cores)
 
                 if nextSmaller(curMach["host"]):
                     next_smaller_cores = config.MIGRATION_MACHINES[nextSmaller(curMach["host"])]["cpu"]
 
                     # DONT SCALE DOWN IF YOU'LL SCALE TO BELOW THE RESOURCES AT A SMALLER MACHINE; DONT SCALE TO 0
                     if (int(cur_cores * 0.75) <= next_smaller_cores) or int(cur_cores * 0.75) == 0:
-                        scale_down = False
+                        scale_down = False  # No point scaling - smaller host would be better
                     else: 
-                        scale_down = True
+                        scale_down = True  # Scaling down is sensible at this host
                 else:
                     next_smaller_cores = "-1"
+                    # No smaller host exists, only scale if we won't hit 0
                     if int(cur_cores * 0.75) == 0:
                         scale_down = False
                     else:
                         scale_down = True
                 
                 
-                # scale up
+                # SCENARIO 1: Container using all CPU and carbon is LOW
+                # Action: Try scaling up FIRST, then migrate to a BIGGER host
                 if cpu == curMach["cpu"]*100 and carb < thresh:
+                    print(f"[{cont}] SCENARIO 1: CPU maxed at {cpu}% but carbon {carb:.2f} < {thresh:.2f}")
+                    
                     if scale_up:
+                        print(f"[{cont}] └─ Attempt 1: Vertical scale-up")
                         self.scale_up(cont, cur_cores)
-                        continue
-
-                    target = nextBigger(curMach["host"])
-                    if target:
-                        print("Migrate to " + str(target))
-                        self.migrate_send(cont,target)
                     else:
-                        with grpc.insecure_channel("localhost:" + config.RECORD_PORT) as c:
-                            stub = records_pb2_grpc.RecordsStub(c)
-                            resp = stub.Update(records_pb2.UpdateRequest(name=cont, value="status", setts="running"))
-                    pass
+                        target = nextBigger(curMach["host"])
+                        if target:
+                            print(f"[{cont}] └─ Attempt 2: Migrating to larger host: {target}")
+                            self.migrate_send(cont, target)
+                        else:
+                            print(f"[{cont}] └─ No larger host available - staying (carbon is low anyway)")
+                            with grpc.insecure_channel("localhost:" + config.RECORD_PORT) as c:
+                                stub = records_pb2_grpc.RecordsStub(c)
+                                resp = stub.Update(records_pb2.UpdateRequest(name=cont, value="status", setts="running"))
+                    continue
 
-                # scale down
+                # SCENARIO 2: Carbon EXCEEDS threshold, REDUCTION NEEDED
+                # Action: FIRST scale DOWN, SECOND migrate to SMALLER host, LAST suspend
                 elif carb > thresh:
+                    print(f"[{cont}] SCENARIO 2: Carbon {carb:.2f} > threshold {thresh:.2f}")
+                    
                     if scale_down:
+                        print(f"[{cont}] └─ Attempt 1: Vertical scale-down")
                         self.scale_down(cont, cur_cores)
                         continue
                     
-
-
                     target = nextSmaller(curMach["host"])
                     if target:
-                        print("Migrate to " + str(target))
-                        self.migrate_send(cont,target)
+                        print(f"[{cont}] └─ Attempt 2: Migrate to smaller host {target}")
+                        self.migrate_send(cont, target)
                     else:
-                        with grpc.insecure_channel("localhost:" + config.RECORD_PORT) as c:
-                            stub = records_pb2_grpc.RecordsStub(c)
-                            resp = stub.Update(records_pb2.UpdateRequest(name=cont, value="status", setts="running"))
+                        print(f"[{cont}] └─ Attempt 3: NO SCALING/MIGRATION OPTIONS - SUSPENDING with lxc-freeze")
+                        self.suspend_container(cont)
                     pass
                 
-                # # scale down
-                # elif cpu <= (curMach["cpu"] / nextSmaller(curMach["host"]))*100:
-                #     if scale_down:
-                #         self.scale_down(cont, cur_cores)
-                #         with grpc.insecure_channel("localhost:" + config.RECORD_PORT) as c:
-                #             stub = records_pb2_grpc.RecordsStub(c)
-                #             resp = stub.Update(records_pb2.UpdateRequest(name=cont, value="status", setts="running"))
-                #         continue
-                    
-                #     target = nextSmaller(curMach["host"])
-                #     if target:
-                #         print("Migrate to " + str(target))
-                #         self.migrate_send(cont,target)
-                #     pass
-                
-                # no change
+                # SCENARIO 3: Container is running normally, nothing to do
                 else:
+                    print(f"[{cont}] SCENARIO 3: Normal - Carbon {carb:.2f} is acceptable")
                     with grpc.insecure_channel("localhost:" + config.RECORD_PORT) as c:
                         stub = records_pb2_grpc.RecordsStub(c)
                         resp = stub.Update(records_pb2.UpdateRequest(name=cont, value="status", setts="running"))
-                pass
                 pass
 
             # HIGH PERFORMANCE POLICY
@@ -293,7 +321,40 @@ class Controller(controller_pb2_grpc.ControllerServicer):
             target = nextBigger(current)
 
         return target
-    
+
+    def suspend_container(self, cont):
+        last_metrics = self.conts.get(cont, {}).get("current", {})
+        freeze_last_cpu = float(last_metrics.get("cpu", 0.0))
+        freeze_last_joules = float(last_metrics.get("joules", 0.0))
+
+        command = ["lxc-freeze", "-n", str(cont)]
+        subprocess.Popen(command).communicate()
+
+        frozen_state = dict(self.conts.get(cont, {}))
+        frozen_state["freeze_last_cpu"] = freeze_last_cpu
+        frozen_state["freeze_last_joules"] = freeze_last_joules
+        frozen_state["freeze_cycles"] = 0
+        frozen_state["status"] = "frozen"
+        current = dict(frozen_state.get("current", {}))
+        current["carbon"] = 0.0
+        current["joules"] = 0.0
+        current["cpu"] = 0.0
+        frozen_state["current"] = current
+
+        # Update records to reflect frozen status.
+        self.set_container_state(cont, frozen_state)
+        
+        print(f"[{cont}] Container is now FROZEN")
+
+    def resume_container(self, cont):
+        command = ["lxc-unfreeze", "-n", str(cont)]
+        subprocess.Popen(command).communicate()
+        
+        # Update records to reflect running status
+        self.update_record_field(cont, "status", "running")
+        self.update_record_field(cont, "freeze_cycles", 0)
+        
+        print(f"[{cont}] Container is now RUNNIN")
 
     def migrate_send(self, contName, target):
 
@@ -417,7 +478,6 @@ class Controller(controller_pb2_grpc.ControllerServicer):
 
 
     def scale_up(self,cont,currentCpu):
-        print("SCALE UP")
         new_cpu = max(1, int(currentCpu * 1.25))
         command = ["lxc-cgroup", "-n", str(cont), "cpuset.cpus", "0-"+str(new_cpu - 1)]
         subprocess.Popen(command).communicate()
@@ -428,11 +488,12 @@ class Controller(controller_pb2_grpc.ControllerServicer):
         with grpc.insecure_channel("localhost:" + config.RECORD_PORT) as c:
             stub = records_pb2_grpc.RecordsStub(c)
             resp = stub.Update(records_pb2.UpdateRequest(name=cont, value="status", setts="running"))
+
+        print(f"[{cont}] Container has been SCALED UP")
         return new_cpu
         pass
 
     def scale_down(self,cont,currentCpu):
-        print("SCALE DOWN")
         new_cpu = max(1, int(currentCpu * 0.75))
         command = ["lxc-cgroup", "-n", str(cont), "cpuset.cpus", "0-"+str(new_cpu - 1)]
         subprocess.Popen(command).communicate()
@@ -444,6 +505,7 @@ class Controller(controller_pb2_grpc.ControllerServicer):
             stub = records_pb2_grpc.RecordsStub(c)
             resp = stub.Update(records_pb2.UpdateRequest(name=cont, value="status", setts="running"))
 
+        print(f"[{cont}] Container has been SCALED DOWN")
         return new_cpu
         pass
 
