@@ -1,0 +1,17 @@
+containers:
+  cont1:
+    filepath: /mnt/d/thesis/CarbonContainersThesis/business_process/flags.json
+    flags:
+      - name: delivery-mode
+        # Ordered from best quality to strongest degradation.
+        levels: [high, medium, low]
+  cont2:
+    filepath: /mnt/d/thesis/CarbonContainersThesis/business_process/flags.json
+    flags:
+    - name: checkout-mode
+      levels: [high, medium, low]
+  cont3:
+    filepath: /mnt/d/thesis/CarbonContainersThesis/business_process/flags.json
+    flags:
+    - name: payment-mode
+      levels: [high, medium, low]

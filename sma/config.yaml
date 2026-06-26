@@ -1,0 +1,173 @@
+sma:
+  version: 0.2.0
+  services:
+    prometheus:
+      address: http://localhost:9090
+
+  observation:
+    mode: trigger
+    interval: 10s
+    window:
+      left: 0s
+      right: 0s
+    max_duration: 3600s
+    targets:
+      - name: all
+
+  # TODO: steps anpassen? und metriken ergenzen
+  measurements:
+    - carbon_intensity:
+        type: raw
+        layer: global
+        query: |
+          lxcc_carbon_intensity
+        step: 5
+        unit: gco2_per_kwh
+        target:
+          - all
+
+    - carbon_threshold:
+        type: raw
+        layer: container
+        query: |
+          lxcc_carbon_threshold
+        step: 5
+        unit: gco2_per_s
+        target:
+          - all
+
+    - cpu_usage:
+        type: raw
+        layer: container
+        query: |
+          lxcc_current_cpu
+        step: 5
+        unit: percent
+        target:
+          - all
+
+    - cpu_cores_current:
+        type: raw
+        layer: container
+        query: |
+          lxcc_current_cpu_core
+        step: 5
+        unit: cores
+        target:
+          - all
+
+    - cpu_cores_max:
+        type: raw
+        layer: container
+        query: |
+          lxcc_max_cpu_core
+        step: 5
+        unit: cores
+        target:
+          - all
+
+    - current_joules:
+        type: raw
+        layer: container
+        query: |
+          lxcc_current_joules
+        step: 5
+        unit: joules
+        target:
+          - all
+
+    - current_carbon:
+        type: raw
+        layer: container
+        query: |
+          lxcc_current_carbon
+        step: 5
+        unit: gco2_per_s
+        target:
+          - all
+
+    - suspended:
+        type: raw
+        layer: container
+        query: |
+          lxcc_suspended
+        step: 5
+        unit: boolean
+        target:
+          - all
+
+    - total_joules:
+        type: raw
+        layer: container
+        query: |
+          lxcc_total_joules
+        step: 5
+        unit: joules
+        target:
+          - all
+
+    - total_carbon:
+        type: raw
+        layer: container
+        query: |
+          lxcc_total_carbon
+        step: 5
+        unit: gco2
+        target:
+          - all
+    
+    - degradation_status:
+        type: raw
+        layer: container
+        query: |
+          service_degradation_status
+        step: 5
+        unit: float
+        target:
+          - all
+
+    - service_requests_total:
+        type: raw
+        layer: container
+        query: |
+          service_requests_total
+        step: 5
+        unit: requests
+        target:
+          - all
+    
+    - service_successful_total:
+        type: raw
+        layer: container
+        query: |
+          service_successful_total
+        step: 5
+        unit: requests
+        target:
+          - all
+    
+    - service_failed_total:
+        type: raw
+        layer: container
+        query: |
+          service_failed_total
+        step: 5
+        unit: requests
+        target:
+          - all
+    
+  
+#    - service_computation_seconds:
+#        type: raw
+#        layer: container
+#        query: |
+#          service_computation_seconds
+#        step: 5
+#        unit: seconds
+#        target:
+#          - all
+
+  report:
+    format: csv
+    location: reports/${startTime}_${runHash}/
+    filename: "${name}_${startTime}.csv"

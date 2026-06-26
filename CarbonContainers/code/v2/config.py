@@ -3,13 +3,19 @@ CONFIG FILE FOR CARBON CONTAINERS
 '''
 
 
+'''
+TEMPORAL CONFIG
+'''
+TEMPORAL_ADDRESS = "localhost:7233"
+WORKFLOW_ID = "carbon-coordinator"
+
 
 ##MIGRATION_MACHINES = {  "155.98.38.48": {"host": "155.98.38.48", "cpu": 8, "memGB": 12, "basepow":25000 },
 ##                        "155.98.36.98": {"host": "155.98.36.98", "cpu": 32, "memGB": 63, "basepow": 100000 },
 ##                        "155.98.39.98": {"host": "155.98.39.98", "cpu": 2, "memGB": 2, "basepow": 6250 }}
 ##
 MIGRATION_MACHINES = {
-    '127.0.0.1': {'cpu': 4, 'host': '127.0.0.1', 'basepow': 25000}  # 'cpu' an verfügbare VM-Cores anpassen (z.B. via nproc)
+    "127.0.0.1": {"host": "127.0.0.1", "cpu": 3, "memGB": 32, "basepow":5000 }  # 'cpu' an verfügbare VM-Cores anpassen (z.B. via nproc)
 }
 
 CO2_SIGNAL_KEY = "/users/jthiede/co2key.txt"
@@ -86,10 +92,22 @@ CARBON DATA FUNCTION: REPLACE WITH YOUR IMPLEMENTATION
     Ensure output is an INT representing CARBON INTENSITY in units: (Grams CO2 / kilowatt*hour)
 '''
 
-first_5_hours = [300.91, 307.31, 307.78, 313.35, 317.95]
+import json
+from pathlib import Path
+INTENSITY_FILE = Path(__file__).resolve().parent / "carbon_intensity.json"
+PROMETHEUS_PORT = 9100
+
+# gCO2/kWh 
 def getCarbonIntensity():
-    #return first_5_hours[0]
-    return 1000
+    intensity = 100 
+    try:
+        if INTENSITY_FILE.exists():
+            data = json.loads(INTENSITY_FILE.read_text())
+            intensity = int(data.get('intensity', intensity))
+    except Exception as error:
+        print(f"Could not load intensity state: {error}")
+
+    return intensity
 
 # Different funcs for different APIs
 # in: api key

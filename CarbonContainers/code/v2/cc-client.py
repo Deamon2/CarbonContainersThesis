@@ -71,10 +71,13 @@ if __name__ == "__main__":
 
 
     #do_register("c1","none","0.0", "stopped")
-    do_register("mytestcontainer", "thresh", "0.1", "running")
+    do_register("cont1", "thresh", "0.1", "running")
+    do_register("cont2", "thresh", "0.1", "running")
+    do_register("cont3", "thresh", "0.1", "running")
+#    do_deregister("mytestcontainer")
     # do_register("c1", "none", "1.0", "running")
-    #do_deregister("c1")
-    # do_start("c1")
+    # do_deregister("c1")
+    # do_start("cont1")
     # do_stop("c1")
 
     # do_status("c1")

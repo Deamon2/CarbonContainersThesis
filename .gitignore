@@ -10,5 +10,8 @@ venv.txt
 *.out
 *.test
 
-.codex
 .vscode
+
+data
+outputs
+reports

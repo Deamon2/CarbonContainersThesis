@@ -1,0 +1,55 @@
+"""
+pip install temporalio httpx 
+"""
+import logging
+from datetime import timedelta
+
+from temporalio import workflow
+from temporalio.common import RetryPolicy
+from temporalio.exceptions import ActivityError
+
+from business_process import config
+
+
+logger = logging.getLogger("ProcessWorkflow")
+
+RETRY_POLICY = RetryPolicy(maximum_attempts=1)
+
+
+async def run_request(container_name: str):
+    try:
+        return await workflow.execute_activity(
+            "request",
+            args=[container_name],
+            start_to_close_timeout=timedelta(seconds=5),
+            retry_policy=RETRY_POLICY,
+        )
+    except ActivityError as error:
+        return { "status": "error", "error": str(error.cause) }
+
+
+@workflow.defn
+class ProcessWorkflow:
+
+    @workflow.run
+    async def run(self):
+        results = {}
+
+        for container_name in (
+            config.FIRST_CONTAINER_NAME,
+            config.SECOND_CONTAINER_NAME,
+            config.THIRD_CONTAINER_NAME,
+        ):
+            result = await run_request(container_name)
+            if result.get("status") == "error":
+                logger.warning("Request for %s failed: %s", container_name, result.get("error"))
+            else:
+                results[container_name] = {
+                    "mode": result.get("mode"),
+                    "computation_time_ms": result.get("computation_time_ms", 0),
+                }
+
+        results["total_computation_time_ms"] = round(sum(r.get("computation_time_ms", 0) for r in results.values()), 2)
+        logger.info("Workflow completed with results: %s", results)
+
+        return results
