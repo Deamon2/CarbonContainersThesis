@@ -31,8 +31,6 @@ class CarbonCoordinatorWorkflow:
         logger.debug("received state update for '%s'", state.container_name)
 
         previous_state = self.workers.get(state.container_name)
-        if previous_state:
-            state.prev_scale_direction = previous_state.scale_direction
         if previous_state and previous_state.suspended and not state.suspended:
             state.warmup_cycles_remaining = 2
 

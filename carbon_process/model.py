@@ -6,9 +6,9 @@ class WorkerState:
     current_carbon: float
     carbon_threshold: float
     cpu_percentage: float
+    current_cpu_core: int
+    max_cpu_core: int
     suspended: bool
-    scale_direction: str | None = None
-    prev_scale_direction: str | None = None
     warmup_cycles_remaining: int = 0        # gives services time afer suspend to stabilize
 
 
