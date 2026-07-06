@@ -9,7 +9,6 @@ PYTHON="/home/thesis/venvs/thesis/bin/python"
 cleanup() {
     echo ""
     echo "Stopping services..."
-    sudo pkill -f "scaphandre"       || true
     sudo pkill -f "cc-records.py"    || true
     sudo pkill -f "cc-controller.py" || true
     sudo pkill -f "cc-monitor.py"    || true
@@ -24,10 +23,6 @@ echo "Starting LXCC Services..."
 echo ""
 
 pushd CarbonContainers/code/v2 >/dev/null
-
-echo "Starting scaphandre..."
-nohup sudo scaphandre prometheus --port 8080 > "$ROOT_DIR/outputs/scaphandre.out" 2>&1 &
-sleep 1
 
 echo "Starting Records Service..."
 nohup sudo $PYTHON -u cc-records.py 127.0.0.1 > "$ROOT_DIR/outputs/records.out" 2>&1 &

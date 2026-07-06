@@ -168,7 +168,8 @@ class Controller(controller_pb2_grpc.ControllerServicer):
             "carbon_threshold": self.conts[cont]["threshold"],
             "current_carbon": self.conts[cont]["current"]["carbon"],
             "cpu_percentage": self.conts[cont]["current"]["cpu"] / int(self.conts[cont]["cpu_cores"]),
-            "scale_direction": scale_direction,
+            "current_cpu_core": int(self.conts[cont]["cpu_cores"]),
+            "max_cpu_core": config.MIGRATION_MACHINES[self.conts[cont]["location"]]["cpu"],
             "suspended": self.conts[cont]["status"] == "frozen",
         }
         try: 
