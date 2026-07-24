@@ -62,6 +62,9 @@ Import `sma/per-container-dashboard.json` and `sma/process-dashboard.json` and s
 pip install locust nest_asyncio temporalio
 ```
 
+### SMA import + pip pydantic
+eine requierments.txt erstellen
+
 ## Configuration
 
 > **Work in progress:** there isn't a single, central place to configure things like ports. Settings are currently spread across multiple files. The list may be incomplete:
@@ -71,11 +74,10 @@ pip install locust nest_asyncio temporalio
   lxc.cgroup2.cpuset.cpus = <start_core>-<end_core>
   ```
   This makes LXCC scaling easier to trigger. Also since containers use distinct cores they won't interfere with each other.
-
 - **Prometheus:** `sma/config.yaml` and `prometheus.yaml`
 - **Feature flags / container names/ filepaths:** `carbon_process/flag_config.yaml` and `business_process/flags.json`
-- **LXCC System Ressources, Ports, Carbon Policy values:** `CarbonContainers/code/v2/config.py`
-- **LXCC Container tresholds:** `CarbonContainers/code/v2/cc-client.py`
+- **LXCC System Ressources, Ports, Carbon Policy values:** `CarbonContainers/code/config.py`
+- **LXCC Container tresholds:** `CarbonContainers/code/cc-client.py`
 - **Thresholds, update interval, ports:** `carbon_process/config.py`
 - **Container names and ports:** `business_process/config.py`
 - **Flags, container names, ports, filepaths:** `sma/main.py`
@@ -137,7 +139,7 @@ sudo ./start_lxcc_services.sh
 
 Register the containers with their thresholds at LXCC:
 ```bash
-sudo /home/thesis/venvs/thesis/bin/python CarbonContainers/code/v2/cc-client.py
+sudo /home/thesis/venvs/thesis/bin/python CarbonContainers/code/cc-client.py
 ```
 (Replace the venv)
 
@@ -164,3 +166,7 @@ Test the service, from the host or another container (find the container IP via 
 ```bash
 curl http://<ip>:8000/compute
 ```
+
+
+prometheus --config.file=prometheus.yaml \
+  --storage.tsdb.path=/mnt/d/thesis/CarbonContainersThesis/sma/reports/2026_07_21_17_13_11_d30782fb/prometheus_data

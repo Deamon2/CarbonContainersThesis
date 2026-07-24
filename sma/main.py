@@ -1,4 +1,6 @@
 from sma import SustainabilityMeasurementAgent, Config
+import shutil
+import yaml
 import json
 import select
 import subprocess
@@ -8,30 +10,60 @@ import sys
 import time
 import urllib.parse
 import urllib.request
+import uuid
+import types
 
-SCRIPT_DIR = os.path.abspath(os.path.dirname(__file__))
-ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, ".."))
-LOGS_DIR = os.path.join(SCRIPT_DIR, "logs")
+from sim_config import load_sim_config, build_parameter_config
+
+
 VENV_PYTHON = "/home/thesis/venvs/thesis/bin/python"
 
+CURRENT_DIR = os.path.abspath(os.path.dirname(__file__))
+PARENT_DIR = os.path.abspath(os.path.join(CURRENT_DIR, ".."))
+LXCC_CODE_DIR = os.path.join(PARENT_DIR, "CarbonContainers", "code")
+FLAGD_FLAGS_URI = "file:///mnt/d/thesis/CarbonContainersThesis/business_process/flags.json"
+FLAGD_PORT = "8013"
+
+NUM_BUSINESS_PROCESS_WORKERS = 6
+
+LXC_CONTAINERS = {
+    "cont1": "0.1", 
+    "cont2": "0.1", 
+    "cont3": "0.1"
+}
+
+
+# container -> flag key
+COMPUTE_SERVICES = {
+    "cont1": "delivery-mode",
+    "cont2": "checkout-mode",
+    "cont3": "payment-mode",
+}
+
+SIM_CONFIG = load_sim_config(os.path.join(CURRENT_DIR, "sim_config.yaml"))
+PARAMETER_CONFIG = build_parameter_config(SIM_CONFIG)
+
+RUN_ID = f"{time.strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
+RUN_DIR = os.path.abspath(os.path.join(CURRENT_DIR, "runs", RUN_ID))
+LOGS_DIR = os.path.join(RUN_DIR, "logs")
+PROM_DATA_DIR = os.path.join(RUN_DIR, "prometheus_data")
+
 os.makedirs(LOGS_DIR, exist_ok=True)
+os.makedirs(PROM_DATA_DIR, exist_ok=True)
+
+PARAMETER_CONFIG_PATH = os.path.abspath(os.path.join(RUN_DIR, "parameter_config.yaml"))
+with open(PARAMETER_CONFIG_PATH, "w") as f:
+    yaml.safe_dump(PARAMETER_CONFIG.model_dump(), f, sort_keys=False)
+
+report_location = {"path": None}
+
+def on_report(report=None):
+    if report is not None:
+        report_location["path"] = os.path.abspath(report.location)
+
+location_observer = types.SimpleNamespace(onReport=on_report)
 
 procs = []  # list of (name, Popen, log_file)
-
-
-def reset_run_logs():
-    for root, _, files in os.walk(LOGS_DIR):
-        for filename in files:
-            if not filename.endswith(".log"):
-                continue
-
-            path = os.path.join(root, filename)
-            try:
-                os.remove(path)
-            except FileNotFoundError:
-                pass
-            except OSError:
-                pass
 
 
 class WaitForEnterTrigger:
@@ -43,7 +75,7 @@ class WaitForEnterTrigger:
                 return {}
 
             try:
-                readable, _, _ = select.select([sys.stdin], [], [], 0.5)
+                readable, _ , _  = select.select([sys.stdin], [], [], 0.5)
             except Exception:
                 time.sleep(0.5)
                 continue
@@ -51,6 +83,7 @@ class WaitForEnterTrigger:
             if readable:
                 sys.stdin.readline()
                 return {}
+
 
 def get_prometheus_address(config):
     services = getattr(config, "services", None)
@@ -92,7 +125,7 @@ def prometheus_has_data(prometheus_address, query):
     return bool(result)
 
 
-def wait_for_measurements(config, timeout_seconds=60, poll_seconds=2):
+def wait_for_measurements(config, timeout_seconds=30, poll_seconds=2):
     prometheus_address = get_prometheus_address(config)
     queries = get_measurement_queries(config)
     pending = {name: query for name, query in queries}
@@ -128,7 +161,7 @@ def write_exception_log(name, message):
         log_f.write(f"{message}\n")
 
 
-def start_proc(name, cmd, cwd=ROOT):
+def start_proc(name, cmd, cwd=PARENT_DIR):
     log_f = None
     try:
         log_path = os.path.join(LOGS_DIR, f"{name}.log")
@@ -150,6 +183,59 @@ def start_proc(name, cmd, cwd=ROOT):
                 log_f.close()
         except Exception:
             pass
+
+
+def run_monitoring():
+    start_proc("prometheus", ["prometheus", f"--config.file={os.path.join(CURRENT_DIR, 'prometheus.yaml')}", f"--storage.tsdb.path={PROM_DATA_DIR}"])
+    time.sleep(2)
+    start_proc("grafana", ["sudo", "grafana", "server"])
+
+
+def run_lxcc_services():
+    start_proc("cc-records", ["sudo", VENV_PYTHON, "-u", "cc-records.py", "127.0.0.1"], cwd=LXCC_CODE_DIR)
+    time.sleep(1)
+    start_proc("cc-controller", ["sudo", VENV_PYTHON, "-u", "cc-controller.py", "127.0.0.1"], cwd=LXCC_CODE_DIR)
+    time.sleep(1)
+    start_proc("cc-monitor", ["sudo", VENV_PYTHON, "-u", "cc-monitor.py", "127.0.0.1"], cwd=LXCC_CODE_DIR)
+    time.sleep(1)
+    start_proc("cc-front", ["sudo", VENV_PYTHON, "-u", "cc-front.py", "127.0.0.1"], cwd=LXCC_CODE_DIR)
+    time.sleep(1)
+
+
+def run_carbon_workflow():
+    start_proc("temporal-server", ["temporal", "server", "start-dev"])
+    time.sleep(1)
+    start_proc("carbon-worker", ["sudo", f"SIM_PARAMETER_CONFIG_PATH={PARAMETER_CONFIG_PATH}", VENV_PYTHON, "-u", "-m", "carbon_process.start_worker"])
+    time.sleep(1)
+    start_proc("carbon-workflow", [ "sudo", f"SIM_PARAMETER_CONFIG_PATH={PARAMETER_CONFIG_PATH}", VENV_PYTHON, "-u", "-m", "carbon_process.start_workflow" ])
+    time.sleep(1)
+
+def run_lxcc_client_and_containers():
+    for container, thresh in LXC_CONTAINERS.items():
+        start_proc("cc-client", ["sudo", VENV_PYTHON, "CarbonContainers/code/cc-client.py", "--name", container, "--thresh", thresh])
+        start_proc(f"lxc-start-{container}", ["sudo", "lxc-start", "-n", container])
+
+
+def run_business_process_workers(count=NUM_BUSINESS_PROCESS_WORKERS):
+    for i in range(count):
+        start_proc(f"process-worker-{i}", ["sudo", VENV_PYTHON, "-u", "-m", "business_process.start_worker"])
+
+
+def run_flagd():
+    start_proc("flagd", ["sudo", "flagd", "start", "--uri", FLAGD_FLAGS_URI, "--port", FLAGD_PORT])
+    time.sleep(1)
+
+
+def run_compute_services():
+    for container, flag_key in COMPUTE_SERVICES.items():
+        start_proc(f"compute-{container}", ["sudo", "lxc-attach", "-n", container, "--", "bash", "-lc",
+            (
+                "cd ~ && "
+                f"FLAG_KEY={flag_key} DEFAULT_MODE=high "
+                "venv/bin/python -m uvicorn compute:app "
+                "--host 0.0.0.0 --port 8000 --workers 3"
+            )
+        ])
 
 
 def stop_all():
@@ -194,74 +280,62 @@ def stop_all():
                 pass
 
     try:
-        subprocess.run(["sudo", "lxc-stop", "-n", "cont1"], timeout=30, check=False)
-        subprocess.run(["sudo", "lxc-stop", "-n", "cont2"], timeout=30, check=False)
-        subprocess.run(["sudo", "lxc-stop", "-n", "cont3"], timeout=30, check=False)
+        for container in LXC_CONTAINERS:
+            subprocess.run(["sudo", "lxc-stop", "-n", container], timeout=30, check=False)
     except Exception as error:
         write_exception_log("lxc-stop", f"lxc-stop fehlgeschlagen: {error}")
         print(f"Fehler beim Stoppen der Container: {error}")
 
 
+def finalize_run(report_location):
+    if not report_location:
+        print(f"Warnung: report_location unbekannt, Logs bleiben unter {LOGS_DIR}.")
+        return
+
+    os.makedirs(report_location, exist_ok=True)
+
+    logs_target = os.path.join(report_location, "logs")
+    if os.path.exists(logs_target):
+        shutil.rmtree(logs_target)
+    shutil.move(LOGS_DIR, logs_target)
+
+    prometheus_target = os.path.join(report_location, "prometheus_data")
+    if os.path.exists(prometheus_target):
+        shutil.rmtree(prometheus_target)
+    if os.path.exists(PROM_DATA_DIR):
+        shutil.move(PROM_DATA_DIR, prometheus_target)
+
+    if os.path.exists(PARAMETER_CONFIG_PATH):
+        shutil.copy2(PARAMETER_CONFIG_PATH, os.path.join(report_location, "parameter_config.yaml"))
+
+    shutil.rmtree(RUN_DIR)  # löscht gesamtes run dir, lieber nur den run löschen?
+
+    print(f"Logs und Prometheus-Daten liegen unter: {report_location}")
+
 
 config = None
 sma = None
 try:
-    reset_run_logs()
+    run_monitoring()
 
-    start_proc("prometheus", ["prometheus", f"--config.file={os.path.join(SCRIPT_DIR, 'prometheus.yaml')}"])
-
-    time.sleep(2)
-
-    start_proc("grafana", ["sudo", "grafana", "server"])
-
-    config = Config.from_file(os.path.join(SCRIPT_DIR, "config.yaml"))
-    sma = SustainabilityMeasurementAgent(config)
+    config = Config.from_file(os.path.join(CURRENT_DIR, "config.yaml"))
+    sma = SustainabilityMeasurementAgent(config, observers=[location_observer])
     sma.connect()
 
-    start_proc("carbon-workflow", ["sudo", "bash", "./start_carbon_workflow.sh"])
+    run_carbon_workflow()
 
-    time.sleep(3)
+    run_lxcc_services()
 
-    start_proc("lxcc", ["sudo", "bash", "./start_lxcc_services.sh"])
-
+    run_lxcc_client_and_containers()
     time.sleep(5)
 
-    start_proc("client", ["sudo", VENV_PYTHON, "CarbonContainers/code/v2/cc-client.py"])
-    start_proc("lxc-start", ["sudo", "lxc-start", "-n", "cont1"])
-    start_proc("lxc-start", ["sudo", "lxc-start", "-n", "cont2"])
-    start_proc("lxc-start", ["sudo", "lxc-start", "-n", "cont3"])
+    run_flagd()
 
-    NUM_WORKERS = 6
-    for i in range(NUM_WORKERS):
-        start_proc(f"process-worker-{i}", ["sudo", VENV_PYTHON, "-u", "-m", "business_process.start_worker"])
+    run_compute_services()
 
-    start_proc("flagd", ["sudo", "flagd", "start", "--uri", "file:///mnt/d/thesis/CarbonContainersThesis/business_process/flags.json", "--port", "8013"])
+    run_business_process_workers()
     time.sleep(3)
 
-    start_proc("compute-1", ["sudo", "lxc-attach", "-n", "cont1", "--", "bash", "-lc",
-        (
-            "cd ~ && "
-            "FLAG_KEY=delivery-mode DEFAULT_MODE=high "
-            "venv/bin/python -m uvicorn compute:app "
-            "--host 0.0.0.0 --port 8000 --workers 3"
-        )
-    ])
-    start_proc("compute-2", ["sudo", "lxc-attach", "-n", "cont2", "--", "bash", "-lc",
-        (
-            "cd ~ && "
-            "FLAG_KEY=checkout-mode DEFAULT_MODE=high "
-            "venv/bin/python -m uvicorn compute:app "
-            "--host 0.0.0.0 --port 8000 --workers 3"
-        )
-    ])
-    start_proc("compute-3", ["sudo", "lxc-attach", "-n", "cont3", "--", "bash", "-lc",
-        (
-            "cd ~ && "
-            "FLAG_KEY=payment-mode DEFAULT_MODE=high "
-            "venv/bin/python -m uvicorn compute:app "
-            "--host 0.0.0.0 --port 8000 --workers 3"
-        )
-    ])
     # Metriken müssen vor Messbeginn verfügbar sein, sonst werden sie nicht erfasst
     wait_for_measurements(config)
 
@@ -274,11 +348,4 @@ finally:
     stop_all()
     if sma is not None:
         sma.teardown()
-
-try:
-    report_location = (config.report.get("location"))
-    if report_location:
-        print(f"Report: {report_location}")
-except Exception as error:
-    pass
-
+    finalize_run(report_location["path"])

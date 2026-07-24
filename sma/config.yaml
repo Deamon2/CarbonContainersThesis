@@ -127,45 +127,75 @@ sma:
           - all
 
     - service_requests_total:
-        type: raw
+        type: aggregate
         layer: container
         query: |
-          service_requests_total
+          sum by (container_name)(service_requests_total)
         step: 5
         unit: requests
         target:
-          - all
-    
+          - all    
+
     - service_successful_total:
-        type: raw
+        type: aggregate
         layer: container
         query: |
-          service_successful_total
+          sum by (container_name, mode)(service_successful_total)
         step: 5
         unit: requests
         target:
-          - all
-    
+          - all    
+        
     - service_failed_total:
-        type: raw
+        type: aggregate
         layer: container
         query: |
-          service_failed_total
+          sum by (container_name)(service_failed_total)
+        step: 5
+        unit: requests
+        target:
+          - all      
+
+    - service_computation_seconds_sum:
+        type: aggregate
+        layer: container
+        query: |
+          sum by (container_name, mode)(service_computation_seconds_sum)
+        step: 5
+        unit: seconds
+        target:
+          - all
+
+    - service_computation_seconds_count:
+        type: aggregate
+        layer: container
+        query: |
+          sum by (container_name, mode)(service_computation_seconds_count)
         step: 5
         unit: requests
         target:
           - all
-    
-  
-#    - service_computation_seconds:
-#        type: raw
-#        layer: container
-#        query: |
-#          service_computation_seconds
-#        step: 5
-#        unit: seconds
-#        target:
-#          - all
+
+    - process_upgrade_threshold:
+        type: raw
+        layer: process
+        query: |
+          process_upgrade_threshold
+        step: 5
+        unit: float
+        target:
+          - all
+
+    - process_degrade_threshold:
+        type: raw
+        layer: process
+        query: |
+          process_degrade_threshold
+        step: 5
+        unit: float
+        target:
+          - all
+
 
   report:
     format: csv

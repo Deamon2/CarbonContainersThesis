@@ -1,25 +1,16 @@
 import sys
 import os
 import subprocess
-import sqlite3
-import argparse
-import threading
 import time
-import socket
 import json
-import pickle
 import re
 import math
 import traceback
-import requests
-from multiprocessing import Process, Queue
 
 from energy_accumulator import EnergyAccumulator
 from daemon3x import daemon
 
 import grpc
-import front_pb2
-import front_pb2_grpc
 
 import records_pb2
 import records_pb2_grpc
@@ -27,47 +18,8 @@ import records_pb2_grpc
 import controller_pb2
 import controller_pb2_grpc
 
-from concurrent import futures
-
 import config
 
-events = ["task-clock", "context-switches", "cpu-migrations", "page-faults", "cycles", "instructions", "branches", "branch-misses"]        
-
-def mws_to_kwh(n):
-    return n / (3600000000)
-    pass
-
-
-def nextSmaller(current):
-    curCPU = config.MIGRATION_MACHINES[current]["cpu"]
-    smallerM = dict( (key,val) for key,val in config.MIGRATION_MACHINES.items() if val["cpu"] < curCPU)
-    curMax = 0
-    curTarget = current
-    for m in smallerM:
-        if smallerM[m]["cpu"] > curMax:
-            curTarget = m
-            curMax = smallerM[m]["cpu"]
-
-    if curTarget != current:
-        return curTarget
-    else:
-        return False
-
-def nextBigger(current):
-    curCPU = config.MIGRATION_MACHINES[current]["cpu"]
-    largerM = dict( (key,val) for key,val in config.MIGRATION_MACHINES.items() if val["cpu"] > curCPU)
-    curMin = math.inf
-    curTarget = current
-    for m in largerM:
-
-        if largerM[m]["cpu"] < curMin:
-            curTarget = m
-            curMin = largerM[m]["cpu"]
-
-    if curTarget != current:
-        return curTarget
-    else:
-        return False
 
 class CC_Monitor(daemon):
 
@@ -94,30 +46,15 @@ class CC_Monitor(daemon):
             
                 self.conts = json.loads(resp.results)
 
-                #print("remove remotes")
-                remotes = []
                 not_actionable = []
                 for cont in self.conts:
-                    #print(type(self.conts[cont]["location"]))
-                    #print(type(self.ip))
-                    #print(self.conts[cont]["location"].strip() == self.ip)
-                    #print(self.conts[cont]["location"] + " == " + self.ip)
-
-                    #print(str(self.conts[cont]["location"] != self.ip))
-                    if self.conts[cont]["location"] != self.ip:
-                        remotes.append(cont)
-                        continue
-
                     status = str(self.conts[cont].get("status", "")).lower()
                     # Controller should only act on running/frozen containers.
                     if status not in ["running", "frozen"]:
                         not_actionable.append(cont)
 
-                #print("remotes")
-                #print(remotes)
-                removes = set(remotes + not_actionable)
-                for rem in removes:
-                    del self.conts[rem]
+                for cont in not_actionable:
+                    del self.conts[cont]
 
                 active_conts = {}
                 for cont, data in self.conts.items():
@@ -126,40 +63,18 @@ class CC_Monitor(daemon):
                         continue
                     active_conts[cont] = data
 
-                
-                
-                print(self.conts)
-
                 self.procMonitor(active_conts)
                 print("CONTROL ACTION")
-                # self.migration()
                 with grpc.insecure_channel("localhost:" + config.CONTROLLER_PORT) as c:
                     stub = controller_pb2_grpc.ControllerStub(c)
                     resp = stub.Migrate(controller_pb2.MigrateRequest(conts=json.dumps(self.conts)))
                 
                 print(resp)
-            # t1 = threading.Timer(1.0, self.check_carbon)
-            # # t2 = threading.Timer(1.0, self.listen)
-            # t3 = threading.Timer(1.0, self.procMonitor)
-            # t4 = threading.Timer(1.0, self.migrate_recv)
-
-            # # t1.start()
-            # # t2.start()
-            # t3.start()
 
         except Exception as ex:
 
             with open(config.WORKING_DIR + "/run_excep.log", "w") as f:
                 f.write(str(ex))
-
-    
-        except Exception as ex:
-
-            with open(config.WORKING_DIR + "/checkcarbon_excep.log", "w") as f:
-                f.write(str(ex))
-
-    def applyPolicy(self, contName, contSetts, carb):
-        pass
     
 
     def getAllPids(self):
@@ -175,7 +90,6 @@ class CC_Monitor(daemon):
                     
             with open(config.WORKING_DIR + "/getpid_excep.log", "w") as f:
                 f.write(str(ex))
-    
 
     def read_cpu_stat(self, cont_name: str):
         path = f"/sys/fs/cgroup/lxc.payload.{cont_name}/cpu.stat"
@@ -221,7 +135,6 @@ class CC_Monitor(daemon):
 
         return cpu_by_container
 
-
     def powerEstimate(self, conts, groupMap):
         # groupMap = {pid: container_name}
         carbon = config.getCarbonIntensity() # gCO2/kWh
@@ -258,10 +171,6 @@ class CC_Monitor(daemon):
     def procMonitor(self, active_conts=None):
         try:
             print("MONITOR")
-            # while True:
-                
-            #time.sleep(config.UPDATE_PERIOD)
-
             with open(config.WORKING_DIR + "/monitor.test", "w") as f:
                 f.write("Hello")
             all_pids = self.getAllPids()
@@ -271,7 +180,6 @@ class CC_Monitor(daemon):
             group_map = {}
             for pid in all_pids:
                 cat = ["cat", "/proc/" + str(pid) + "/cgroup"]
-                systemd = ["systemctl"]
                 catOut = str(subprocess.Popen(cat, stdout=subprocess.PIPE).communicate()[0])
                 # Versuche erst das alte Muster
                 match = re.search(r"lxc/([\w-]+)", str(catOut))
@@ -295,7 +203,6 @@ class CC_Monitor(daemon):
             os.mkdir(config.WORKING_DIR + "/procOut")
             print(group_map)
 
-            # conts, cpu_from_perf = self.getPerfEvents(group_map)      # perf gibt nicht die korrekte CPU auslastung zurück -> nutze cpu.stat
             conts = list(dict.fromkeys(group_map.values()))
             cpu_map = self.getContainerCpu(group_map)
 
@@ -309,10 +216,6 @@ class CC_Monitor(daemon):
                 self.conts[cont]["current"]["cpu"] = cpu_map[cont]
 
             print(self.conts)
-            #for c in groupMap:
-                #if groupMap[c] in self.conts:
-
-                #print(str(c) + " : " + str(groupMap[c]))
 
         except Exception as ex:
             with open(config.WORKING_DIR + "/procMonitor_excep.log", "w") as f:
@@ -337,11 +240,3 @@ if __name__ == "__main__":
     
     d = CC_Monitor(config.WORKING_DIR + "/daemon.pid", sys.argv[1])
     d.run()
-    # if sys.argv[2] == "start":
-    #     d.start()
-    
-    # elif sys.argv[2] == "stop":
-    #     d.stop()
-
-    # sys.exit(0)
-    #run()

@@ -4,3 +4,5 @@ THIRD_CONTAINER_NAME = "cont3"
 
 SERVICE_PORT = 8000
 PROMETHEUS_PORT = 9102
+
+# in metrics Server vorhandene quality modes anpassen 

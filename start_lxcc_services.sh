@@ -22,7 +22,7 @@ trap cleanup SIGINT SIGTERM
 echo "Starting LXCC Services..."
 echo ""
 
-pushd CarbonContainers/code/v2 >/dev/null
+pushd CarbonContainers/code >/dev/null
 
 echo "Starting Records Service..."
 nohup sudo $PYTHON -u cc-records.py 127.0.0.1 > "$ROOT_DIR/outputs/records.out" 2>&1 &

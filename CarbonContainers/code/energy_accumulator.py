@@ -106,6 +106,7 @@ class EnergyAccumulator:
 
     def process_metrics(self, metrics: dict):
         processes = metrics.get("consumers", [])
+        seen_pids = set()
         with self.lock:
             for proc in processes:
                 raw_pid = proc.get("pid")
@@ -114,6 +115,7 @@ class EnergyAccumulator:
                 if raw_pid is None or timestamp is None:
                     continue
                 pid = int(raw_pid)
+                seen_pids.add(pid)
                 last_timestamp = self.last_timestamp_by_pid.get(pid)
                 if last_timestamp is not None:
                     dt = timestamp - last_timestamp
@@ -121,6 +123,11 @@ class EnergyAccumulator:
                         power_w = power_uw / 1000000
                         self.energy_by_pid[pid] = self.energy_by_pid.get(pid, 0.0) + power_w * dt
                 self.last_timestamp_by_pid[pid] = timestamp
+
+            stale_pids = set(self.energy_by_pid) - seen_pids
+            for pid in stale_pids:
+                self.energy_by_pid.pop(pid, None)
+                self.last_timestamp_by_pid.pop(pid, None)
 
     def read_and_reset(self, pids):
         with self.lock:

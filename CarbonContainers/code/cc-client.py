@@ -1,31 +1,9 @@
-import sys
-import os
-import subprocess
-import sqlite3
 import argparse
-import json
-# import Pyro4
-import config
-
-
-import socket
-
 import grpc
 import front_pb2
 import front_pb2_grpc
 
 IP = "localhost"
-# IP = "198.22.255.30"
-# IP = "198.22.255.31"
-# IP = "198.22.255.16"
-# IP = "198.22.255.26"
-# IP = "155.98.38.48"
-
-
-
-
-# IP = "155.98.38.17"
-# IP = "155.98.39.120"
 
 PORT = 1994
 
@@ -35,7 +13,6 @@ def do_register(name, pol, thresh, status):
         stub = front_pb2_grpc.FrontStub(c)
         # updateResp = stub.Update(order_pb2.UpdateRequest(number=str(number), name=stock, type=buySell, quantity=quantity))
         resp = stub.Register(front_pb2.RegisterRequest(name=name,policy=pol,thresh=thresh,status=status))
-        pass
 
 def do_deregister(name):
     print("DEGREG")
@@ -66,19 +43,27 @@ def do_status(name):
     print(resp.name)
     print(resp.status)
 
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Front client")
+    parser.add_argument("--name", help="Name des Containers")
+    parser.add_argument("--thresh", help="Threshold Wert")
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
+    args = parse_args()
 
-
-
-    #do_register("c1","none","0.0", "stopped")
-    do_register("cont1", "thresh", "0.1", "running")
-    do_register("cont2", "thresh", "0.1", "running")
-    do_register("cont3", "thresh", "0.1", "running")
-#    do_deregister("mytestcontainer")
-    # do_register("c1", "none", "1.0", "running")
-    # do_deregister("c1")
+    if args.name and args.thresh:
+        do_register(args.name, "thresh", args.thresh, "running")
+    else:
+        do_register("cont1", "thresh", "0.1", "running")
+        do_register("cont2", "thresh", "0.1", "running")
+        do_register("cont3", "thresh", "0.1", "running")
+    
+    # do_deregister("cont1")
     # do_start("cont1")
-    # do_stop("c1")
+    # do_stop("cont1")
 
-    # do_status("c1")
+    # do_status("cont1")
     pass

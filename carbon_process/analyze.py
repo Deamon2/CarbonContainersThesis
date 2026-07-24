@@ -2,14 +2,14 @@ import logging
 
 from temporalio import activity
 
-from carbon_process import config
+from carbon_process.config import CONFIG
 from carbon_process.model import AnalysisResult, WorkerState
 
 logger = logging.getLogger("analyze")
 
-HIGH_THRESHOLD = config.HIGH_THRESHOLD
-LOW_THRESHOLD  = config.LOW_THRESHOLD
-
+HIGH_THRESHOLD = CONFIG.high_threshold
+LOW_THRESHOLD  = CONFIG.low_threshold
+SCORE_METHOD = CONFIG.score_method
 
 @activity.defn
 async def analyze(workers: dict[str, WorkerState]):
@@ -21,6 +21,7 @@ async def analyze(workers: dict[str, WorkerState]):
 
     # improve local worker performance by degrading
     for container_name, state in workers.items():
+        
         if state.suspended:
             results.append(AnalysisResult(
                 action="degrade",
@@ -35,6 +36,9 @@ async def analyze(workers: dict[str, WorkerState]):
                 reason="high_cpu",
                 candidates=[container_name],
             ))
+
+        if state.warmup_cycles_remaining > 0:
+            continue
     
     active_workers = [
         worker
@@ -49,20 +53,28 @@ async def analyze(workers: dict[str, WorkerState]):
     if total_carbon == 0:
         return results
 
-    sum_tresholds = sum(worker.carbon_threshold for worker in active_workers)
-
-    scores = {
-        container_name: (score := state.current_carbon / total_carbon)
-        for container_name, state in workers.items()
-        if not state.suspended 
-        if not state.warmup_cycles_remaining > 0
-        if not (state.cpu_percentage > 95 and state.current_cpu_core < state.max_cpu_core)
-    }
+    if SCORE_METHOD == "relative_consumption":
+        scores = {
+            container_name: (score := state.current_carbon / total_carbon)
+            for container_name, state in workers.items()
+            if not state.suspended 
+            if not state.warmup_cycles_remaining > 0
+            if not (state.cpu_percentage > 95 and state.current_cpu_core < state.max_cpu_core)
+        }
+    elif SCORE_METHOD == "pressure":
+        scores = {
+            container_name: (score:= state.current_carbon / state.carbon_threshold)
+            for container_name, state in workers.items()
+            if not state.suspended 
+            if not state.warmup_cycles_remaining > 0
+            if not (state.cpu_percentage > 95 and state.current_cpu_core < state.max_cpu_core)
+        }
     if not scores:
         return results
 
     # high process-wide carbon
-    high_limit = sum_tresholds * HIGH_THRESHOLD
+    sum_thresholds = sum(worker.carbon_threshold for worker in active_workers)
+    high_limit = sum_thresholds * HIGH_THRESHOLD
     if total_carbon >= high_limit:
         candidates = sorted(
             list(scores),
@@ -78,7 +90,7 @@ async def analyze(workers: dict[str, WorkerState]):
             ))
 
     # low process-wide carbon
-    low_limit = sum_tresholds * LOW_THRESHOLD
+    low_limit = sum_thresholds * LOW_THRESHOLD
     if total_carbon <= low_limit:
         candidates = sorted(
             list(scores),

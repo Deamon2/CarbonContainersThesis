@@ -26,6 +26,14 @@ class CarbonCoordinatorWorkflow:
         self.changes: bool = False
 
 
+    def start_warmup(self, container_name: str, cycles: int = 2):
+        state = self.workers.get(container_name)
+        if state is None:
+            return
+
+        state.warmup_cycles_remaining = cycles
+
+
     @workflow.signal
     async def state_update(self, state: WorkerState):
         logger.debug("received state update for '%s'", state.container_name)
@@ -33,6 +41,11 @@ class CarbonCoordinatorWorkflow:
         previous_state = self.workers.get(state.container_name)
         if previous_state and previous_state.suspended and not state.suspended:
             state.warmup_cycles_remaining = 2
+        elif previous_state:
+            state.warmup_cycles_remaining = max(
+                previous_state.warmup_cycles_remaining,
+                state.warmup_cycles_remaining,
+            )
 
         self.workers[state.container_name] = state
         self.changes = True
@@ -90,3 +103,5 @@ class CarbonCoordinatorWorkflow:
 
                 if not result:
                     continue
+
+                self.start_warmup(container_name)

@@ -485,7 +485,7 @@
     }
 
   ],
-  "refresh": false,
+  "refresh": "5s",
   "schemaVersion": 38,
   "templating": {
     "list": [

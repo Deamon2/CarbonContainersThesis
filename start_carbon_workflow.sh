@@ -6,6 +6,20 @@ mkdir -p outputs
 ROOT_DIR="$(pwd)"
 PYTHON="/home/thesis/venvs/thesis/bin/python"
 
+SIM_PARAMETER_CONFIG_PATH=""
+
+for arg in "$@"; do
+    case $arg in
+        SIM_PARAMETER_CONFIG_PATH=*)
+            SIM_PARAMETER_CONFIG_PATH="${arg#SIM_PARAMETER_CONFIG_PATH=}"
+            ;;
+        *)
+            echo "Unbekanntes Argument: $arg"
+            exit 1
+            ;;
+    esac
+done
+
 cleanup() {
     echo ""
     echo "Stopping workflow services..."
@@ -23,12 +37,11 @@ temporal server start-dev > "$ROOT_DIR/outputs/temporal.out" 2>&1 &
 sleep 1
 
 echo "Starting worker..."
-nohup sudo $PYTHON -u -m carbon_process.start_worker > "$ROOT_DIR/outputs/carbon_worker.out" 2>&1 &
+sudo SIM_PARAMETER_CONFIG_PATH="$SIM_PARAMETER_CONFIG_PATH" nohup $PYTHON -u -m carbon_process.start_worker > "$ROOT_DIR/outputs/carbon_worker.out" 2>&1 &
 sleep 1
 
 echo "Starting workflow..."
-nohup sudo $PYTHON -u -m carbon_process.start_workflow > "$ROOT_DIR/outputs/carbon_workflow.out" 2>&1 &
-
+sudo SIM_PARAMETER_CONFIG_PATH="$SIM_PARAMETER_CONFIG_PATH" nohup "$PYTHON" -u -m carbon_process.start_workflow > "$ROOT_DIR/outputs/carbon_workflow.out" 2>&1 &
 echo ""
 echo "Services started. Press Ctrl+C to stop them."
 echo ""

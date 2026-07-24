@@ -21,7 +21,7 @@ scikit-learn
 
 Lastly, we suggest you use CO2Signal/ElectricityMap for carbon data: https://www.co2signal.com/
 
-(The carbon data source can be freely changed by modifying the function in code/v2/config.py)
+(The carbon data source can be freely changed by modifying the function in code/config.py)
 
 
 
