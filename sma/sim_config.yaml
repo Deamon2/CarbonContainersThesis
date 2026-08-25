@@ -1,7 +1,0 @@
-carbon_workflow:
-  score_method:
-    - relative_consumption
-  high_threshold:
-    - 0.9
-  low_threshold:
-    - 0.7

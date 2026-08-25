@@ -1,0 +1,20 @@
+carbon_workflow:
+  score_method:
+    - relative_consumption
+    - pressure
+  high_threshold:
+    - 0.9
+  low_threshold:
+    - 0.7
+    
+load_shape:
+  scenario:
+    - steady
+    - fluctuation
+    - spike
+    
+ci_scenario:
+  region:
+    - fr
+    - de
+    - dk

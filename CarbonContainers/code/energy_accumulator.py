@@ -29,6 +29,7 @@ class EnergyAccumulator:
         self.lock = threading.Lock()
         self.energy_by_pid = {}            # pid -> akkumulierte Joule seit letztem read_and_reset()
         self.last_timestamp_by_pid = {}    # pid -> letzter von scaphandre gemeldeter Prozess-Timestamp
+        self.missed_ticks_by_pid = {}      # pid -> Anzahl der Ticks, in welchen die PID nciht vorkamm
         self.scaphandre_process = None
         self.stop_event = threading.Event()
         self.max_top_consumers = max_top_consumers
@@ -128,6 +129,16 @@ class EnergyAccumulator:
             for pid in stale_pids:
                 self.energy_by_pid.pop(pid, None)
                 self.last_timestamp_by_pid.pop(pid, None)
+                self.missed_ticks_by_pid.pop(pid, None)
+
+            all_tracked = set(self.last_timestamp_by_pid) | set(self.energy_by_pid)
+            for pid in all_tracked - seen_pids:
+                missing_count = self.missed_ticks_by_pid.get(pid, 0) + 1
+                self.missed_ticks_by_pid[pid] = missing_count
+                if missing_count >= 5:
+                    self.energy_by_pid.pop(pid, None)
+                    self.last_timestamp_by_pid.pop(pid, None)
+                    self.missed_ticks_by_pid.pop(pid, None)
 
     def read_and_reset(self, pids):
         with self.lock:

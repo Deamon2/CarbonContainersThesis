@@ -3,15 +3,16 @@ pip install locust nest_asyncio temporalio
 '''
 
 import asyncio
-import nest_asyncio
+import logging
 import time
 import uuid
-import logging
+import nest_asyncio
 
 from locust import User, task, events, LoadTestShape, constant_throughput
 
 from temporalio.client import Client
 from business_process.workflow import ProcessWorkflow
+from business_process import locust_shapes
 
 
 nest_asyncio.apply()
@@ -44,10 +45,9 @@ async def get_client():
 
 class WorkflowUser(User):
 
-    TARGET_RPS = 4
-    REQUEST_TIMEOUT_S = 10
+    pacing_granularity_s = 20.0  # -> 0.05 rps/User
 
-    wait_time = constant_throughput(1 / REQUEST_TIMEOUT_S)
+    wait_time = constant_throughput(1 / pacing_granularity_s)
 
     @task
     def run_workflow(self):
@@ -92,7 +92,33 @@ class WorkflowUser(User):
             logger.warning("Workflow %s failed after %.1f ms: %s", workflow_id, elapsed, exc)
 
 
-class WorkflowShape(LoadTestShape):
+SHAPES = {
+    "constant": locust_shapes.ConstantLoadShape,
+    "steady": locust_shapes.SteadyLoadShape,
+    "fluctuation": locust_shapes.FluctuationLoadShape,
+    "spike": locust_shapes.SpikeLoadShape,
+}
+
+
+@events.init_command_line_parser.add_listener
+def add_shape_argument(parser):
+    parser.add_argument(
+        "--shape",
+        default="constant",
+    )
+
+
+class DynamicLoadShape(LoadTestShape):
+    def __init__(self):
+        super().__init__()
+        self.selected_shape = None
+
+    def get_selected_shape(self):
+        if self.selected_shape is None:
+            shape_name = self.runner.environment.parsed_options.shape
+            self.selected_shape = SHAPES[shape_name]()
+            self.selected_shape.runner = self.runner
+        return self.selected_shape
+
     def tick(self):
-        user_count = WorkflowUser.TARGET_RPS * WorkflowUser.REQUEST_TIMEOUT_S
-        return user_count, WorkflowUser.TARGET_RPS
+        return self.get_selected_shape().tick()

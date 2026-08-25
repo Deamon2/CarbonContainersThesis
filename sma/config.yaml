@@ -10,11 +10,10 @@ sma:
     window:
       left: 0s
       right: 0s
-    max_duration: 3600s
+    max_duration: 1800s
     targets:
       - name: all
 
-  # TODO: steps anpassen? und metriken ergenzen
   measurements:
     - carbon_intensity:
         type: raw

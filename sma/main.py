@@ -13,10 +13,9 @@ import urllib.request
 import uuid
 import types
 
-from sim_config import load_sim_config, build_parameter_config
+from parameter_sweep import build_sim_config
 
-
-VENV_PYTHON = "/home/thesis/venvs/thesis/bin/python"
+VENV = "/home/thesis/venvs/thesis/bin/"
 
 CURRENT_DIR = os.path.abspath(os.path.dirname(__file__))
 PARENT_DIR = os.path.abspath(os.path.join(CURRENT_DIR, ".."))
@@ -40,8 +39,13 @@ COMPUTE_SERVICES = {
     "cont3": "payment-mode",
 }
 
-SIM_CONFIG = load_sim_config(os.path.join(CURRENT_DIR, "sim_config.yaml"))
-PARAMETER_CONFIG = build_parameter_config(SIM_CONFIG)
+def load_parameter_config(path: str):
+    with open(path) as f:
+        return yaml.safe_load(f) or {}
+BASE_PARAMETER_CONFIG = load_parameter_config(os.path.join(CURRENT_DIR, "parameter_config.yaml"))
+
+RUN_SIM_CONFIG = build_sim_config(BASE_PARAMETER_CONFIG)
+LOCUST_SHAPE = RUN_SIM_CONFIG["load_shape"]["scenario"]
 
 RUN_ID = f"{time.strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
 RUN_DIR = os.path.abspath(os.path.join(CURRENT_DIR, "runs", RUN_ID))
@@ -51,9 +55,9 @@ PROM_DATA_DIR = os.path.join(RUN_DIR, "prometheus_data")
 os.makedirs(LOGS_DIR, exist_ok=True)
 os.makedirs(PROM_DATA_DIR, exist_ok=True)
 
-PARAMETER_CONFIG_PATH = os.path.abspath(os.path.join(RUN_DIR, "parameter_config.yaml"))
-with open(PARAMETER_CONFIG_PATH, "w") as f:
-    yaml.safe_dump(PARAMETER_CONFIG.model_dump(), f, sort_keys=False)
+RUN_SIM_CONFIG_PATH = os.path.abspath(os.path.join(RUN_DIR, "parameter_config.yaml"))
+with open(RUN_SIM_CONFIG_PATH, "w") as f:
+    yaml.safe_dump(RUN_SIM_CONFIG, f, sort_keys=False)
 
 report_location = {"path": None}
 
@@ -192,33 +196,33 @@ def run_monitoring():
 
 
 def run_lxcc_services():
-    start_proc("cc-records", ["sudo", VENV_PYTHON, "-u", "cc-records.py", "127.0.0.1"], cwd=LXCC_CODE_DIR)
+    start_proc("cc-records", ["sudo", f"{VENV}python", "-u", "cc-records.py", "127.0.0.1"], cwd=LXCC_CODE_DIR)
     time.sleep(1)
-    start_proc("cc-controller", ["sudo", VENV_PYTHON, "-u", "cc-controller.py", "127.0.0.1"], cwd=LXCC_CODE_DIR)
+    start_proc("cc-controller", ["sudo", f"SIM_PARAMETER_CONFIG_PATH={RUN_SIM_CONFIG_PATH}", f"{VENV}python", "-u", "cc-controller.py", "127.0.0.1"], cwd=LXCC_CODE_DIR)
     time.sleep(1)
-    start_proc("cc-monitor", ["sudo", VENV_PYTHON, "-u", "cc-monitor.py", "127.0.0.1"], cwd=LXCC_CODE_DIR)
+    start_proc("cc-monitor", ["sudo", f"SIM_PARAMETER_CONFIG_PATH={RUN_SIM_CONFIG_PATH}", f"{VENV}python", "-u", "cc-monitor.py", "127.0.0.1"], cwd=LXCC_CODE_DIR)
     time.sleep(1)
-    start_proc("cc-front", ["sudo", VENV_PYTHON, "-u", "cc-front.py", "127.0.0.1"], cwd=LXCC_CODE_DIR)
+    start_proc("cc-front", ["sudo", f"{VENV}python", "-u", "cc-front.py", "127.0.0.1"], cwd=LXCC_CODE_DIR)
     time.sleep(1)
 
 
 def run_carbon_workflow():
     start_proc("temporal-server", ["temporal", "server", "start-dev"])
     time.sleep(1)
-    start_proc("carbon-worker", ["sudo", f"SIM_PARAMETER_CONFIG_PATH={PARAMETER_CONFIG_PATH}", VENV_PYTHON, "-u", "-m", "carbon_process.start_worker"])
+    start_proc("carbon-worker", ["sudo", f"SIM_PARAMETER_CONFIG_PATH={RUN_SIM_CONFIG_PATH}", f"{VENV}python", "-u", "-m", "carbon_process.start_worker"])
     time.sleep(1)
-    start_proc("carbon-workflow", [ "sudo", f"SIM_PARAMETER_CONFIG_PATH={PARAMETER_CONFIG_PATH}", VENV_PYTHON, "-u", "-m", "carbon_process.start_workflow" ])
+    start_proc("carbon-workflow", [ "sudo", f"SIM_PARAMETER_CONFIG_PATH={RUN_SIM_CONFIG_PATH}", f"{VENV}python", "-u", "-m", "carbon_process.start_workflow" ])
     time.sleep(1)
 
 def run_lxcc_client_and_containers():
     for container, thresh in LXC_CONTAINERS.items():
-        start_proc("cc-client", ["sudo", VENV_PYTHON, "CarbonContainers/code/cc-client.py", "--name", container, "--thresh", thresh])
+        start_proc("cc-client", ["sudo", f"{VENV}python", "CarbonContainers/code/cc-client.py", "--name", container, "--thresh", thresh])
         start_proc(f"lxc-start-{container}", ["sudo", "lxc-start", "-n", container])
 
 
 def run_business_process_workers(count=NUM_BUSINESS_PROCESS_WORKERS):
     for i in range(count):
-        start_proc(f"process-worker-{i}", ["sudo", VENV_PYTHON, "-u", "-m", "business_process.start_worker"])
+        start_proc(f"process-worker-{i}", ["sudo", f"{VENV}python", "-u", "-m", "business_process.start_worker"])
 
 
 def run_flagd():
@@ -236,6 +240,9 @@ def run_compute_services():
                 "--host 0.0.0.0 --port 8000 --workers 3"
             )
         ])
+
+def run_locust(shape):
+    start_proc("locust", [f"{VENV}locust", "-f", "business_process/locustfile.py", "--headless", "--shape", shape])
 
 
 def stop_all():
@@ -305,8 +312,8 @@ def finalize_run(report_location):
     if os.path.exists(PROM_DATA_DIR):
         shutil.move(PROM_DATA_DIR, prometheus_target)
 
-    if os.path.exists(PARAMETER_CONFIG_PATH):
-        shutil.copy2(PARAMETER_CONFIG_PATH, os.path.join(report_location, "parameter_config.yaml"))
+    if os.path.exists(RUN_SIM_CONFIG_PATH):
+        shutil.copy2(RUN_SIM_CONFIG_PATH, os.path.join(report_location, "parameter_config.yaml"))
 
     shutil.rmtree(RUN_DIR)  # löscht gesamtes run dir, lieber nur den run löschen?
 
@@ -338,6 +345,9 @@ try:
 
     # Metriken müssen vor Messbeginn verfügbar sein, sonst werden sie nicht erfasst
     wait_for_measurements(config)
+    time.sleep(5)
+
+    run_locust(LOCUST_SHAPE)
 
     print("Messung wird gestartet...")
     with sma.start_session():

@@ -146,13 +146,85 @@
       ]
     },
 
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Energy Consumption per Containers",
+      "description": "Joule consumption per container per UPDATE_PERIOD.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "joule",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "desc" },
+        "legend": { "displayMode": "list", "placement": "bottom", "calcs": [] }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "lxcc_current_joules",
+          "legendFormat": "{{container_name}}",
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Carbon Intensity",
+      "description": "Grid carbon intensity in gCO2/kWh",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 18,
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "suffix:gCO2/kWh",
+          "min": 0,
+          "color": { "mode": "fixed", "fixedColor": "green" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": { "mode": "single", "sort": "none" },
+        "legend": { "displayMode": "list", "placement": "bottom", "calcs": [] }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "lxcc_carbon_intensity",
+          "legendFormat": "Carbon Intensity",
+          "refId": "A"
+        }
+      ]
+    },
 
     {
       "id": 3,
       "type": "timeseries",
       "title": "CPU Usage per Containers",
       "description": "Curernt CPU usage per container in percent.",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
       "fieldConfig": {
         "defaults": {
@@ -189,7 +261,7 @@
       "type": "timeseries",
       "title": "Core Allocation per Containers",
       "description": "Percentage of cores allocated per container.",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
       "fieldConfig": {
         "defaults": {
@@ -290,79 +362,6 @@
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
           "expr": "lxcc_suspended",
           "legendFormat": "{{container_name}}",
-          "refId": "A"
-        }
-      ]
-    },
-
-    {
-      "id": 7,
-      "type": "timeseries",
-      "title": "Energy Consumption per Containers",
-      "description": "Joule consumption per container per UPDATE_PERIOD.",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "lineWidth": 2,
-            "fillOpacity": 0,
-            "drawStyle": "line",
-            "lineInterpolation": "linear",
-            "showPoints": "never",
-            "spanNulls": false
-          },
-          "unit": "joule",
-          "min": 0
-        },
-        "overrides": []
-      },
-      "options": {
-        "tooltip": { "mode": "multi", "sort": "desc" },
-        "legend": { "displayMode": "list", "placement": "bottom", "calcs": [] }
-      },
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "lxcc_current_joules",
-          "legendFormat": "{{container_name}}",
-          "refId": "A"
-        }
-      ]
-    },
-
-    {
-      "id": 8,
-      "type": "timeseries",
-      "title": "Carbon Intensity",
-      "description": "Grid carbon intensity in gCO2/kWh",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "lineWidth": 2,
-            "fillOpacity": 18,
-            "drawStyle": "line",
-            "lineInterpolation": "linear",
-            "showPoints": "never",
-            "spanNulls": false
-          },
-          "unit": "suffix:gCO2/kWh",
-          "min": 0,
-          "color": { "mode": "fixed", "fixedColor": "green" }
-        },
-        "overrides": []
-      },
-      "options": {
-        "tooltip": { "mode": "single", "sort": "none" },
-        "legend": { "displayMode": "list", "placement": "bottom", "calcs": [] }
-      },
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "lxcc_carbon_intensity",
-          "legendFormat": "Carbon Intensity",
           "refId": "A"
         }
       ]

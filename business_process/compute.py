@@ -13,8 +13,11 @@ os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
 
-MAX_CONCURRENT_REQUESTS = len(os.sched_getaffinity(0))  # ist ein guter Anfang, aber wenn container runter gescaled wird, wird das nicht automatisch angepasst
+# MAX_CONCURRENT_REQUESTS = len(os.sched_getaffinity(0))  # ist ein guter Anfang, aber wenn container runter gescaled wird, wird das nicht automatisch angepasst
+MAX_CONCURRENT_REQUESTS = 2
+MAX_QUEUED_REQUESTS = 8
 request_semaphore = Semaphore(MAX_CONCURRENT_REQUESTS)
+admission_semaphore = Semaphore(MAX_CONCURRENT_REQUESTS + MAX_QUEUED_REQUESTS)
 
 import numpy as np
 import uvicorn
@@ -120,17 +123,24 @@ def compute_endpoint(deadline_ms: int | None = None):
         logger.info("request rejected before processing: deadline_ms=%s now_ms=%s", deadline_ms, int(time.monotonic() * 1000))
         raise HTTPException(status_code=503, detail="Deadline exceeded before processing")
     
-    with request_semaphore:
-        mode = resolve_mode()
-        units = COMPUTE_UNITS[mode]
+    if not admission_semaphore.acquire(blocking=False):
+        logger.info("request rejected: compute queue full")
+        raise HTTPException(status_code=503, detail="Compute queue full")
 
-        elapsed_ms = compute(units, deadline_ms=deadline_ms)
-        
-        return ResponseModel(
-            mode=mode,
-            compute_units_executed=units,
-            computation_time_ms=round(elapsed_ms, 2),
-        )
+    try:
+        with request_semaphore:
+            mode = resolve_mode()
+            units = COMPUTE_UNITS[mode]
+
+            elapsed_ms = compute(units, deadline_ms=deadline_ms)
+            
+            return ResponseModel(
+                mode=mode,
+                compute_units_executed=units,
+                computation_time_ms=round(elapsed_ms, 2),
+            )
+    finally:
+        admission_semaphore.release()
 
 
 if __name__ == "__main__":

@@ -13,7 +13,7 @@ from business_process.metrics_server import metrics
 logger = logging.getLogger("request")
 
 SERVICE_PORT = config.SERVICE_PORT
-REQUEST_DEADLINE_S = 2
+REQUEST_DEADLINE_S = 3
 
 name_to_ip = {}
 http_client = None
@@ -89,24 +89,21 @@ async def request(container_name: str):
         return result
 
     except httpx.HTTPStatusError as error:
-        logger.warning("Request to worker %s failed with HTTP %s", container_name, error.response.status_code)
 
         metrics.update_total_requests(container_name=container_name)
         metrics.update_failed_requests(container_name=container_name)
 
         if error.response.status_code == 503:
-            return { "status": "error", "error": "DeadlineExceeded" }
+            return { "status": "error", "error": f"{error.response.status_code} {error.response.text}" }
 
         return { "status": "error", "error": f"HTTP {error.response.status_code}" }
     except httpx.TimeoutException as error:
-        logger.warning("Request to worker %s timed out: %s", container_name, error)
 
         metrics.update_total_requests(container_name=container_name)
         metrics.update_failed_requests(container_name=container_name)
 
         return { "status": "error", "error": "ReadTimeout" }
     except Exception as error:
-        logger.warning("Request to worker %s failed: %s", container_name, error)
 
         metrics.update_total_requests(container_name=container_name)
         metrics.update_failed_requests(container_name=container_name)
