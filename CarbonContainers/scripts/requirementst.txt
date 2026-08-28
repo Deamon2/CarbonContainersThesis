@@ -1,6 +1,6 @@
 grpcio
 grpcio-tools
-# scikit-learn
 numpy
 requests
 prometheus-client
+pydantic

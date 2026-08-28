@@ -8,7 +8,7 @@ from carbon_process.analyze import analyze
 from carbon_process.execute import execute
 from carbon_process.workflow import CarbonCoordinatorWorkflow
 from carbon_process.plan import plan
-
+from carbon_process import metrics_server
 
 TEMPORAL_ADDRESS = "localhost:7233"
 TASK_QUEUE = "feature-degradation"

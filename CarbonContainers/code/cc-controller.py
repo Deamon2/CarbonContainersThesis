@@ -231,14 +231,33 @@ class Controller(controller_pb2_grpc.ControllerServicer):
         
         print(f"[{cont}] Container is now RUNNING")
 
+    def build_cpuset_range(self, start_core, new_cpu, physical_cores):
+        """new_cpu logische Threads ab start_core.
+        erwartet 2 Threads/Kern (Sibling-Offset = physical_cores)"""
+        n_thread0 = math.ceil(new_cpu / 2)
+        n_thread1 = new_cpu - n_thread0
 
+        end0 = start_core + n_thread0 - 1
+        part0 = str(start_core) if start_core == end0 else f"{start_core}-{end0}"
+
+        if n_thread1 <= 0:
+            return part0
+
+        base = start_core + physical_cores
+        end1 = base + n_thread1 - 1
+        part1 = str(base) if base == end1 else f"{base}-{end1}"
+
+        return f"{part0},{part1}"
+
+    # scaled logische cores 
     def scale_up(self,cont,currentCpu):
         cpus = subprocess.check_output(["lxc-cgroup", "-n", cont, "cpuset.cpus"], text=True).strip()
-        start_core = int(re.search(r"\d+", cpus).group())           # cpu cures should be a range e.g. 0-1
-        host_max_cores = config.MIGRATION_MACHINES[self.conts[cont]["location"]]["cpu"]
-        new_cpu = min(host_max_cores, max(1, math.ceil(currentCpu * 1.25)))
-        end_core = start_core + new_cpu - 1
-        command = ["lxc-cgroup", "-n", str(cont), "cpuset.cpus", f"{start_core}-{end_core}"]
+        start_core = int(re.search(r"\d+", cpus).group())           # cpu cures should be a range e.g. 0-1, 6-7 
+        host_max_threads = config.MIGRATION_MACHINES[self.conts[cont]["location"]]["cpu"]
+        physical_cores  = config.MIGRATION_MACHINES[self.conts[cont]["location"]]["physical_cores"]
+        new_cpu = min(host_max_threads, max(1, math.ceil(currentCpu * 1.25)))
+        cpuset_str = self.build_cpuset_range(start_core, new_cpu, physical_cores)
+        command = ["lxc-cgroup", "-n", str(cont), "cpuset.cpus", cpuset_str]
         subprocess.Popen(command).communicate()
         with grpc.insecure_channel("localhost:" + config.RECORD_PORT) as c:
             stub = records_pb2_grpc.RecordsStub(c)
@@ -254,9 +273,10 @@ class Controller(controller_pb2_grpc.ControllerServicer):
     def scale_down(self,cont,currentCpu):
         cpus = subprocess.check_output(["lxc-cgroup", "-n", cont, "cpuset.cpus"], text=True).strip()
         start_core = int(re.search(r"\d+", cpus).group())
+        physical_cores  = config.MIGRATION_MACHINES[self.conts[cont]["location"]]["physical_cores"]
         new_cpu = max(1, int(currentCpu * 0.75))
-        end_core = start_core + new_cpu - 1
-        command = ["lxc-cgroup", "-n", str(cont), "cpuset.cpus", f"{start_core}-{end_core}"]
+        cpuset_str = self.build_cpuset_range(start_core, new_cpu, physical_cores)
+        command = ["lxc-cgroup", "-n", str(cont), "cpuset.cpus", cpuset_str]
         subprocess.Popen(command).communicate()
         with grpc.insecure_channel("localhost:" + config.RECORD_PORT) as c:
             stub = records_pb2_grpc.RecordsStub(c)

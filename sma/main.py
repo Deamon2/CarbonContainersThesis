@@ -20,7 +20,9 @@ VENV = "/home/thesis/venvs/thesis/bin/"
 CURRENT_DIR = os.path.abspath(os.path.dirname(__file__))
 PARENT_DIR = os.path.abspath(os.path.join(CURRENT_DIR, ".."))
 LXCC_CODE_DIR = os.path.join(PARENT_DIR, "CarbonContainers", "code")
-FLAGD_FLAGS_URI = "file:///mnt/d/thesis/CarbonContainersThesis/business_process/flags.json"
+#FLAGD_FLAGS_URI = "file:///mnt/d/thesis/CarbonContainersThesis/business_process/flags.json"
+FLAGD_FLAGS_URI = "file:///home/thesis/CarbonContainersThesis/business_process/flags.json"
+
 FLAGD_PORT = "8013"
 
 NUM_BUSINESS_PROCESS_WORKERS = 6
@@ -28,15 +30,17 @@ NUM_BUSINESS_PROCESS_WORKERS = 6
 LXC_CONTAINERS = {
     "cont1": "0.1", 
     "cont2": "0.1", 
-    "cont3": "0.1"
+    "cont3": "0.1",
+    "cont4": "0.1"
 }
 
 
 # container -> flag key
 COMPUTE_SERVICES = {
-    "cont1": "delivery-mode",
-    "cont2": "checkout-mode",
-    "cont3": "payment-mode",
+    "cont1": "location",
+    "cont2": "delivery",
+    "cont3": "checkout",
+    "cont4": "payment",
 }
 
 def load_parameter_config(path: str):
@@ -47,17 +51,28 @@ BASE_PARAMETER_CONFIG = load_parameter_config(os.path.join(CURRENT_DIR, "paramet
 RUN_SIM_CONFIG = build_sim_config(BASE_PARAMETER_CONFIG)
 LOCUST_SHAPE = RUN_SIM_CONFIG["load_shape"]["scenario"]
 
-RUN_ID = f"{time.strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
-RUN_DIR = os.path.abspath(os.path.join(CURRENT_DIR, "runs", RUN_ID))
-LOGS_DIR = os.path.join(RUN_DIR, "logs")
-PROM_DATA_DIR = os.path.join(RUN_DIR, "prometheus_data")
+NUM_SIMULATION_RUNS = 3
+RUN_GROUP_ID = f"{time.strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
+RUN_ID = None
+RUN_DIR = None
+LOGS_DIR = None
+PROM_DATA_DIR = None
+RUN_SIM_CONFIG_PATH = None
 
-os.makedirs(LOGS_DIR, exist_ok=True)
-os.makedirs(PROM_DATA_DIR, exist_ok=True)
 
-RUN_SIM_CONFIG_PATH = os.path.abspath(os.path.join(RUN_DIR, "parameter_config.yaml"))
-with open(RUN_SIM_CONFIG_PATH, "w") as f:
-    yaml.safe_dump(RUN_SIM_CONFIG, f, sort_keys=False)
+def prepare_run():
+    global RUN_ID, RUN_DIR, LOGS_DIR, PROM_DATA_DIR, RUN_SIM_CONFIG_PATH
+
+    RUN_ID = f"{time.strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
+    RUN_DIR = os.path.abspath(os.path.join(CURRENT_DIR, "runs", RUN_ID))
+    LOGS_DIR = os.path.join(RUN_DIR, "logs")
+    PROM_DATA_DIR = os.path.join(RUN_DIR, "prometheus_data")
+    RUN_SIM_CONFIG_PATH = os.path.abspath(os.path.join(RUN_DIR, "parameter_config.yaml"))
+
+    os.makedirs(LOGS_DIR, exist_ok=True)
+    os.makedirs(PROM_DATA_DIR, exist_ok=True)
+    with open(RUN_SIM_CONFIG_PATH, "w") as f:
+        yaml.safe_dump(RUN_SIM_CONFIG, f, sort_keys=False)
 
 report_location = {"path": None}
 
@@ -129,7 +144,7 @@ def prometheus_has_data(prometheus_address, query):
     return bool(result)
 
 
-def wait_for_measurements(config, timeout_seconds=30, poll_seconds=2):
+def wait_for_measurements(config, timeout_seconds=15, poll_seconds=2):
     prometheus_address = get_prometheus_address(config)
     queries = get_measurement_queries(config)
     pending = {name: query for name, query in queries}
@@ -194,7 +209,6 @@ def run_monitoring():
     time.sleep(2)
     start_proc("grafana", ["sudo", "grafana", "server"])
 
-
 def run_lxcc_services():
     start_proc("cc-records", ["sudo", f"{VENV}python", "-u", "cc-records.py", "127.0.0.1"], cwd=LXCC_CODE_DIR)
     time.sleep(1)
@@ -205,10 +219,11 @@ def run_lxcc_services():
     start_proc("cc-front", ["sudo", f"{VENV}python", "-u", "cc-front.py", "127.0.0.1"], cwd=LXCC_CODE_DIR)
     time.sleep(1)
 
+def run_temporal():
+    start_proc("temporal", ["temporal", "server", "start-dev"])
+    time.sleep(1)
 
 def run_carbon_workflow():
-    start_proc("temporal-server", ["temporal", "server", "start-dev"])
-    time.sleep(1)
     start_proc("carbon-worker", ["sudo", f"SIM_PARAMETER_CONFIG_PATH={RUN_SIM_CONFIG_PATH}", f"{VENV}python", "-u", "-m", "carbon_process.start_worker"])
     time.sleep(1)
     start_proc("carbon-workflow", [ "sudo", f"SIM_PARAMETER_CONFIG_PATH={RUN_SIM_CONFIG_PATH}", f"{VENV}python", "-u", "-m", "carbon_process.start_workflow" ])
@@ -219,16 +234,13 @@ def run_lxcc_client_and_containers():
         start_proc("cc-client", ["sudo", f"{VENV}python", "CarbonContainers/code/cc-client.py", "--name", container, "--thresh", thresh])
         start_proc(f"lxc-start-{container}", ["sudo", "lxc-start", "-n", container])
 
-
 def run_business_process_workers(count=NUM_BUSINESS_PROCESS_WORKERS):
     for i in range(count):
         start_proc(f"process-worker-{i}", ["sudo", f"{VENV}python", "-u", "-m", "business_process.start_worker"])
 
-
 def run_flagd():
     start_proc("flagd", ["sudo", "flagd", "start", "--uri", FLAGD_FLAGS_URI, "--port", FLAGD_PORT])
     time.sleep(1)
-
 
 def run_compute_services():
     for container, flag_key in COMPUTE_SERVICES.items():
@@ -236,7 +248,7 @@ def run_compute_services():
             (
                 "cd ~ && "
                 f"FLAG_KEY={flag_key} DEFAULT_MODE=high "
-                "venv/bin/python -m uvicorn compute:app "
+                "/venv/bin/python -m uvicorn compute:app "
                 "--host 0.0.0.0 --port 8000 --workers 3"
             )
         ])
@@ -317,45 +329,80 @@ def finalize_run(report_location):
 
     shutil.rmtree(RUN_DIR)  # löscht gesamtes run dir, lieber nur den run löschen?
 
-    print(f"Logs und Prometheus-Daten liegen unter: {report_location}")
+    print(f"Logs und Prometheus-Daten liegen unter: {report_location}\n")
 
 
-config = None
-sma = None
-try:
-    run_monitoring()
+def group_reports(report_locations):
+    group_dir = os.path.abspath(os.path.join(CURRENT_DIR, "reports", RUN_GROUP_ID))
+    os.makedirs(group_dir, exist_ok=True)
 
+    for index, report_path in enumerate(report_locations, start=1):
+        if not report_path or not os.path.exists(report_path):
+            continue
+        target = os.path.join(group_dir, f"run_{index}_{os.path.basename(report_path)}")
+        shutil.move(report_path, target)
+
+    print(f"Reports der Konfiguration liegen unter: {group_dir}")
+
+
+def run_simulation():
+    global sma
+
+    prepare_run()
+    report_location["path"] = None
     config = Config.from_file(os.path.join(CURRENT_DIR, "config.yaml"))
     sma = SustainabilityMeasurementAgent(config, observers=[location_observer])
-    sma.connect()
 
-    run_carbon_workflow()
+    try:
+        run_monitoring()
+        sma.connect()
 
-    run_lxcc_services()
+        run_temporal()
 
-    run_lxcc_client_and_containers()
-    time.sleep(5)
+        run_carbon_workflow()
 
-    run_flagd()
+        run_lxcc_services()
 
-    run_compute_services()
+        run_lxcc_client_and_containers()
+        time.sleep(5)
 
-    run_business_process_workers()
-    time.sleep(3)
+        run_flagd()
 
-    # Metriken müssen vor Messbeginn verfügbar sein, sonst werden sie nicht erfasst
-    wait_for_measurements(config)
-    time.sleep(5)
+        run_compute_services()
 
-    run_locust(LOCUST_SHAPE)
+        run_business_process_workers()
+        time.sleep(3)
 
-    print("Messung wird gestartet...")
-    with sma.start_session():
-        sma.run(trigger=WaitForEnterTrigger())
+        # Metriken müssen vor Messbeginn verfügbar sein, sonst werden sie nicht erfasst
+        wait_for_measurements(config)
+        time.sleep(5)
+
+        run_locust(LOCUST_SHAPE)
+
+        print("Messung wird gestartet...")
+        with sma.start_session():
+            sma.run(trigger=WaitForEnterTrigger())
+    finally:
+        stop_all()
+        sma.teardown()
+        finalize_run(report_location["path"])
+        sma = None
+        procs.clear()
+
+    return report_location["path"]
+
+
+sma = None
+report_locations = []
+try:
+    for simulation_number in range(1, NUM_SIMULATION_RUNS + 1):
+        print(f"Simulation {simulation_number}/{NUM_SIMULATION_RUNS}")
+        report_locations.append(run_simulation())
 except KeyboardInterrupt:
     print("Abgebrochen. Räume Services auf...")
 finally:
-    stop_all()
-    if sma is not None:
-        sma.teardown()
-    finalize_run(report_location["path"])
+    if procs or sma is not None:
+        stop_all()
+        if sma is not None:
+            sma.teardown()
+    group_reports(report_locations)

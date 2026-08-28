@@ -11,7 +11,7 @@ WORKFLOW_ID = "carbon-coordinator"
 
 
 MIGRATION_MACHINES = {
-    "127.0.0.1": {"host": "127.0.0.1", "cpu": 3, "memGB": 32, "basepow":4000 }  # 'cpu' an verfügbare VM-Cores anpassen (z.B. via nproc)
+    "127.0.0.1": {"host": "127.0.0.1", "cpu": 3, "memGB": 32, "basepow":4000, "physical_cores": 18 }  # 'cpu' an verfügbare VM-Cores anpassen (z.B. via nproc)
 }
 
 CO2_SIGNAL_KEY = "/users/jthiede/co2key.txt"

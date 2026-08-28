@@ -35,11 +35,7 @@ class ProcessWorkflow:
     async def run(self):
         results = {}
 
-        for container_name in (
-            config.FIRST_CONTAINER_NAME,
-            config.SECOND_CONTAINER_NAME,
-            config.THIRD_CONTAINER_NAME,
-        ):
+        for container_name in config.CONTAINER_NAMES:
             result = await run_request(container_name)
             if result.get("status") == "error":
                 logger.warning("Request for %s failed: %s", container_name, result.get("error"))

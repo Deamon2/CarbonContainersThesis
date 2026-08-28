@@ -1,4 +1,5 @@
 from carbon_process import config
+from carbon_process.helpers import load_flag_config
 from prometheus_client import Gauge, start_http_server
 
 class Metrics:
@@ -17,6 +18,13 @@ class Metrics:
             "process_degrade_threshold",
             "Process Flag degrade Threshold",
         )
+
+        self.process_upgrade_threshold.set(0.0)
+        self.process_degrade_threshold.set(0.0)
+
+        containers = load_flag_config().get("containers", {})
+        for container_name in containers:
+            self.degradation.labels(container_name=container_name)
 
     def update_degradation_status(self, container_name: str, degradation_status: float):
         self.degradation.labels(container_name=container_name).set(degradation_status)

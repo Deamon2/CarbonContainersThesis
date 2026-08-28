@@ -3,21 +3,15 @@ Setup && Start:
     pip install fastapi uvicorn numpy openfeature-sdk openfeature-provider-flagd
     FLAG_KEY=delivery-mode DEFAULT_MODE=high uvicorn compute:app --host 0.0.0.0 --port 8000
 """
-import logging
-import time
-from threading import Semaphore
-
-# 1 Thread pro berechnung
 import os
+# 1 Thread pro berechnung
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
 
-# MAX_CONCURRENT_REQUESTS = len(os.sched_getaffinity(0))  # ist ein guter Anfang, aber wenn container runter gescaled wird, wird das nicht automatisch angepasst
-MAX_CONCURRENT_REQUESTS = 2
-MAX_QUEUED_REQUESTS = 8
-request_semaphore = Semaphore(MAX_CONCURRENT_REQUESTS)
-admission_semaphore = Semaphore(MAX_CONCURRENT_REQUESTS + MAX_QUEUED_REQUESTS)
+import logging
+import time
+from threading import Semaphore
 
 import numpy as np
 import uvicorn
@@ -28,12 +22,26 @@ from pydantic import BaseModel
 from openfeature import api
 from openfeature.contrib.provider.flagd import FlagdProvider
 
-
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s - %(message)s",
 )
 logger = logging.getLogger("compute")
+
+MAX_CONCURRENT_REQUESTS = 8
+MAX_QUEUED_REQUESTS = 14
+request_semaphore = Semaphore(MAX_CONCURRENT_REQUESTS)
+admission_semaphore = Semaphore(MAX_CONCURRENT_REQUESTS + MAX_QUEUED_REQUESTS)
+
+# Schätzung der Zeitverhältnisse für unterschiedlich komplexe Antworten 
+# Target für cont1 & cont4: low (10ms), medium (50ms), high (200ms)
+# Targets: cont2 x 2, cont3 / 2
+COMPUTE_UNITS = {
+    "low": 7,    # in Memory / Cache lookup
+    "medium": 35,  # DB querys, API calls
+    "high": 135, # Algorithmen + mehrerer DB queries / API calls (+ ML/DL model)
+}
+COMPUTE_MAT = np.random.default_rng(42).random((512, 512)).astype(np.float32)
 
 FLAGD_HOST = "10.0.3.1"
 PORT = 8013
@@ -44,20 +52,11 @@ DEFAULT_MODE = os.getenv("DEFAULT_MODE", "high").strip()
 if not FLAG_KEY:
     raise RuntimeError("FLAG_KEY must be set via the environment before starting the service.")
 
-# Schätzung der Zeitverhältnisse für unterschiedlich komplexe Antworten 
-# Target: low (10ms), medium (50ms), high (200ms)
-COMPUTE_UNITS = {
-    "low": 5,    # in Memory / Cache lookup
-    "medium": 25,  # DB querys, API calls
-    "high": 100, # Algorithmen + mehrerer DB queries / API calls (+ ML/DL model)
-}
 
 if DEFAULT_MODE not in COMPUTE_UNITS:
     logger.warning("DEFAULT_MODE='%s' is invalid. Falling back to 'high'.", DEFAULT_MODE)
     DEFAULT_MODE = "high"
 
-
-COMPUTE_MAT = np.random.default_rng(42).random((512, 512)).astype(np.float32)
 
 def compute_unit():
     return float((COMPUTE_MAT @ COMPUTE_MAT)[0, 0])

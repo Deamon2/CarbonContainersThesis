@@ -26,6 +26,5 @@ COMPUTE_UNITS = {
     for level, ms in target_ms.items()
 }
 print(COMPUTE_UNITS) 
-# Output z.B.:
-# Per unit: 2.03ms +- 0.04ms
-# {'low': 5, 'medium': 25, 'high': 99}
+# Per unit: 1.43ms +- 0.04ms
+# {'low': 7, 'medium': 35, 'high': 140}

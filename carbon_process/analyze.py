@@ -22,6 +22,9 @@ async def analyze(workers: dict[str, WorkerState]):
     # improve local worker performance by degrading
     for container_name, state in workers.items():
         
+        if state.warmup_cycles_remaining > 0:
+            continue
+
         if state.suspended:
             results.append(AnalysisResult(
                 action="degrade",
@@ -31,14 +34,13 @@ async def analyze(workers: dict[str, WorkerState]):
             continue
 
         if state.cpu_percentage > 95 and state.current_cpu_core < state.max_cpu_core:
+            logger.info("High CPU for %s: %.1f%%", container_name, state.cpu_percentage)
             results.append(AnalysisResult(
                 action="degrade",
                 reason="high_cpu",
                 candidates=[container_name],
             ))
 
-        if state.warmup_cycles_remaining > 0:
-            continue
     
     active_workers = [
         worker
