@@ -26,20 +26,13 @@ class Metrics:
             buckets=(0.01, 0.05, 0.1, 0.2, 0.5, 1, 2, 5)
         )
 
-        containers = [
-            config.FIRST_CONTAINER_NAME,
-            config.SECOND_CONTAINER_NAME,
-            config.THIRD_CONTAINER_NAME,
-        ]
-
-
         modes = [
             "high",
             "medium",
             "low"
         ]
 
-        for container in containers:
+        for container in config.CONTAINER_NAMES:
             self.service_requests_total.labels(container_name=container)
             self.service_failed_total.labels(container_name=container)
 

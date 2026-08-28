@@ -4,6 +4,7 @@ pip install locust nest_asyncio temporalio
 
 import asyncio
 import logging
+from random import random
 import time
 import uuid
 import nest_asyncio
@@ -48,6 +49,9 @@ class WorkflowUser(User):
     pacing_granularity_s = 20.0  # -> 0.05 rps/User
 
     wait_time = constant_throughput(1 / pacing_granularity_s)
+
+    def on_start(self):
+        time.sleep(random.uniform(0, self.pacing_granularity_s))
 
     @task
     def run_workflow(self):

@@ -29,14 +29,13 @@ def interpolate_curve(points, position):
     fraction = position - left_index
     return points[left_index] + (points[right_index] - points[left_index]) * fraction
 
-
+MAX_RPS = 14.0
 
 class ScenarioShape(LoadTestShape):
     run_time = 1800
 
     pacing_granularity_s = 20.0
 
-    capacity_rps = 7.0
     spawn_rate = 5
 
     def users_from_rps(self, rps):
@@ -45,14 +44,13 @@ class ScenarioShape(LoadTestShape):
 
 class ConstantLoadShape(ScenarioShape):
     def tick(self):
-        return self.users_from_rps(5.0), self.spawn_rate # konstant 5 RPS
+        return self.users_from_rps(10), self.spawn_rate
 
 
-# 0.7- 1.3 cv (TODO: leicht erhöhen?)
 class SteadyLoadShape(ScenarioShape):
-    base_rps = 5.0
-    min_rps = 4.88
-    max_rps = 5.12
+    base_rps = MAX_RPS * 0.7
+    min_rps = base_rps * 0.95
+    max_rps = base_rps * 1.05
 
     def tick(self):
         t = self.get_run_time()
@@ -70,12 +68,10 @@ class SteadyLoadShape(ScenarioShape):
         rps = clamp_value(self.base_rps + noise, self.min_rps, self.max_rps)
         return self.users_from_rps(rps), self.spawn_rate
 
-# 3 cv. 5-6 wäre für unterschied besser?
 class FluctuationLoadShape(ScenarioShape):
-    base_rps = 5.0
-    min_rps = 4.0
-    max_rps = 6.0
-    # variability_scale = 0.52        # löschen dann hat 5.6 cv
+    base_rps = MAX_RPS * 0.7
+    min_rps = base_rps * 0.8
+    max_rps = base_rps * 1.2
 
     burst_windows = [
         (180, 24, 0.45),
@@ -105,7 +101,6 @@ class FluctuationLoadShape(ScenarioShape):
                 burst += amplitude * triangle_pulse((t - start) / duration)
 
         rps = clamp_value(
-            # self.base_rps + self.variability_scale * (oscillation + burst),
             self.base_rps + oscillation + burst,
             self.min_rps,
             self.max_rps,
@@ -115,15 +110,16 @@ class FluctuationLoadShape(ScenarioShape):
 
 
 class SpikeLoadShape(ScenarioShape):
-    baseline_rps = 3.5
-    baseline_min_rps = 3.35
-    baseline_max_rps = 3.65
+    baseline_rps = MAX_RPS * 0.5
+    baseline_min_rps = baseline_rps * 0.9
+    baseline_max_rps = baseline_rps * 1.1
 
+    # start, rise, hold, fall, peak_rps
     spikes = [
-        (180, 20, 50, 20, 6.60),
-        (600, 20, 50, 20, 6.55),
-        (1020, 20, 50, 20, 6.75),
-        (1440, 20, 50, 20, 6.65),
+        (180, 20, 50, 20, MAX_RPS * 0.95),
+        (600, 20, 50, 20, MAX_RPS * 0.90),
+        (1020, 20, 50, 20, MAX_RPS),
+        (1440, 20, 50, 20, MAX_RPS * 0.92),
     ]
 
     def tick(self):

@@ -13,7 +13,6 @@ from business_process.metrics_server import metrics
 logger = logging.getLogger("request")
 
 SERVICE_PORT = config.SERVICE_PORT
-REQUEST_DEADLINE_S = 3
 
 name_to_ip = {}
 http_client = None
@@ -59,9 +58,10 @@ def get_container_ip(container_name: str):
 @activity.defn
 async def request(container_name: str):
     try:
+        request_timeout_s = config.CONTAINER_TIMEOUTS_S[container_name]
         target_ip = get_container_ip(container_name)
         url = f"http://{target_ip}:{SERVICE_PORT}/compute"
-        deadline_ms = int((time.monotonic() + REQUEST_DEADLINE_S) * 1000)
+        deadline_ms = int((time.monotonic() + request_timeout_s) * 1000)
 
         logger.info("Sending request to worker %s at %s with deadline_ms=%s", container_name, url, deadline_ms)
 
@@ -69,7 +69,7 @@ async def request(container_name: str):
         response = await client.get(
             url,
             params={"deadline_ms": deadline_ms},
-            timeout=REQUEST_DEADLINE_S * 1.5,
+            timeout=request_timeout_s * 1.5,
         )
         response.raise_for_status()
 
