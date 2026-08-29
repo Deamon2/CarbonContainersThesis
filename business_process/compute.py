@@ -28,18 +28,30 @@ logging.basicConfig(
 )
 logger = logging.getLogger("compute")
 
-MAX_CONCURRENT_REQUESTS = 8
+MAX_CONCURRENT_REQUESTS = 7
 MAX_QUEUED_REQUESTS = 14
 request_semaphore = Semaphore(MAX_CONCURRENT_REQUESTS)
 admission_semaphore = Semaphore(MAX_CONCURRENT_REQUESTS + MAX_QUEUED_REQUESTS)
 
 # Schätzung der Zeitverhältnisse für unterschiedlich komplexe Antworten 
-# Target für cont1 & cont4: low (10ms), medium (50ms), high (200ms)
+# Target: low (10ms), medium (50ms), high (200ms)
 # Targets: cont2 x 2, cont3 / 2
+'''
 COMPUTE_UNITS = {
     "low": 7,    # in Memory / Cache lookup
     "medium": 35,  # DB querys, API calls
     "high": 135, # Algorithmen + mehrerer DB queries / API calls (+ ML/DL model)
+}
+COMPUTE_UNITS = {
+    "low": 4,
+    "medium": 18,
+    "high": 68,
+}
+'''
+COMPUTE_UNITS = {
+    "low": 14,
+    "medium": 70,
+    "high": 270,
 }
 COMPUTE_MAT = np.random.default_rng(42).random((512, 512)).astype(np.float32)
 

@@ -1,4 +1,3 @@
-from locust import LoadTestShape
 import math
 
 def clamp_value(value, low, high):
@@ -29,32 +28,25 @@ def interpolate_curve(points, position):
     fraction = position - left_index
     return points[left_index] + (points[right_index] - points[left_index]) * fraction
 
+
 MAX_RPS = 14.0
-
-class ScenarioShape(LoadTestShape):
-    run_time = 1800
-
-    pacing_granularity_s = 20.0
-
-    spawn_rate = 5
-
-    def users_from_rps(self, rps):
-        return max(1, int(round(rps * self.pacing_granularity_s)))
+RUN_TIME = 1800
 
 
-class ConstantLoadShape(ScenarioShape):
-    def tick(self):
-        return self.users_from_rps(10), self.spawn_rate
+class ConstantLoadShape:
+    target_rps = 5
+
+    def tick(self, run_time):
+        return self.target_rps
 
 
-class SteadyLoadShape(ScenarioShape):
+class SteadyLoadShape:
     base_rps = MAX_RPS * 0.7
     min_rps = base_rps * 0.95
     max_rps = base_rps * 1.05
 
-    def tick(self):
-        t = self.get_run_time()
-        if t >= self.run_time:
+    def tick(self, t):
+        if t >= RUN_TIME:
             return None
         
         noise = zero_mean_noise(
@@ -66,9 +58,9 @@ class SteadyLoadShape(ScenarioShape):
             ],
         )
         rps = clamp_value(self.base_rps + noise, self.min_rps, self.max_rps)
-        return self.users_from_rps(rps), self.spawn_rate
+        return rps
 
-class FluctuationLoadShape(ScenarioShape):
+class FluctuationLoadShape:
     base_rps = MAX_RPS * 0.7
     min_rps = base_rps * 0.8
     max_rps = base_rps * 1.2
@@ -81,9 +73,8 @@ class FluctuationLoadShape(ScenarioShape):
         (1560, 22, 0.45),
     ]
 
-    def tick(self):
-        t = self.get_run_time()
-        if t >= self.run_time:
+    def tick(self, t):
+        if t >= RUN_TIME:
             return None
 
         oscillation = zero_mean_noise(
@@ -106,10 +97,10 @@ class FluctuationLoadShape(ScenarioShape):
             self.max_rps,
         )
 
-        return self.users_from_rps(rps), self.spawn_rate
+        return rps
 
 
-class SpikeLoadShape(ScenarioShape):
+class SpikeLoadShape:
     baseline_rps = MAX_RPS * 0.5
     baseline_min_rps = baseline_rps * 0.9
     baseline_max_rps = baseline_rps * 1.1
@@ -122,9 +113,8 @@ class SpikeLoadShape(ScenarioShape):
         (1440, 20, 50, 20, MAX_RPS * 0.92),
     ]
 
-    def tick(self):
-        t = self.get_run_time()
-        if t >= self.run_time:
+    def tick(self, t):
+        if t >= RUN_TIME:
             return None
         baseline = self.baseline_rps + zero_mean_noise(
             t,
@@ -152,5 +142,5 @@ class SpikeLoadShape(ScenarioShape):
                 spike_rps = peak_rps - smooth_step(progress) * (peak_rps - baseline)
                 rps = max(rps, spike_rps)
                 break
-        rps = clamp_value(rps, 0.5, self.capacity_rps)
-        return self.users_from_rps(rps), self.spawn_rate
+        rps = clamp_value(rps, 0.5, MAX_RPS)
+        return rps
