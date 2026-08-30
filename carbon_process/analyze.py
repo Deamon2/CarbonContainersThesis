@@ -8,7 +8,7 @@ from carbon_process.model import AnalysisResult, WorkerState
 logger = logging.getLogger("analyze")
 
 HIGH_THRESHOLD = CONFIG.high_threshold
-LOW_THRESHOLD  = CONFIG.low_threshold
+LOW_THRESHOLD  = HIGH_THRESHOLD - 0.2
 SCORE_METHOD = CONFIG.score_method
 
 @activity.defn
@@ -63,7 +63,7 @@ async def analyze(workers: dict[str, WorkerState]):
             if not state.warmup_cycles_remaining > 0
             if not (state.cpu_percentage > 95 and state.current_cpu_core < state.max_cpu_core)
         }
-    elif SCORE_METHOD == "pressure":
+    elif SCORE_METHOD == "carbon_pressure":
         scores = {
             container_name: (score:= state.current_carbon / state.carbon_threshold)
             for container_name, state in workers.items()

@@ -78,8 +78,8 @@ async def request(container_name: str):
         result = response.json()
         result["status"] = "ok"
 
-        metrics.update_total_requests(container_name=container_name)
-        metrics.update_successful_requests(container_name=container_name, mode=result.get("mode", "unknown"))
+        metrics.update_total_service_requests(container_name=container_name)
+        metrics.update_successful_service_requests(container_name=container_name, mode=result.get("mode", "unknown"))
         metrics.update_computation_time(
             container_name=container_name,
             mode=result.get("mode", "unknown"),
@@ -90,8 +90,8 @@ async def request(container_name: str):
 
     except httpx.HTTPStatusError as error:
 
-        metrics.update_total_requests(container_name=container_name)
-        metrics.update_failed_requests(container_name=container_name)
+        metrics.update_total_service_requests(container_name=container_name)
+        metrics.update_failed_service_requests(container_name=container_name)
 
         if error.response.status_code == 503:
             return { "status": "error", "error": f"{error.response.status_code} {error.response.text}" }
@@ -99,13 +99,13 @@ async def request(container_name: str):
         return { "status": "error", "error": f"HTTP {error.response.status_code}" }
     except httpx.TimeoutException as error:
 
-        metrics.update_total_requests(container_name=container_name)
-        metrics.update_failed_requests(container_name=container_name)
+        metrics.update_total_service_requests(container_name=container_name)
+        metrics.update_failed_service_requests(container_name=container_name)
 
         return { "status": "error", "error": "ReadTimeout" }
     except Exception as error:
 
-        metrics.update_total_requests(container_name=container_name)
-        metrics.update_failed_requests(container_name=container_name)
+        metrics.update_total_service_requests(container_name=container_name)
+        metrics.update_failed_service_requests(container_name=container_name)
 
         return { "status": "error", "error": type(error).__name__ }

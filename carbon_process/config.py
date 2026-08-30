@@ -11,7 +11,6 @@ PROMETHEUS_PORT = 9101
 class CarbonWorkflowConfig(BaseModel):
     score_method: str = "relative_consumption"
     high_threshold: float = 0.9
-    low_threshold: float = 0.7
 
 def load():
     path = os.environ.get("SIM_PARAMETER_CONFIG_PATH")

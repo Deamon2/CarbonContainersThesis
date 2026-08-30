@@ -1,12 +1,11 @@
 carbon_workflow:
   score_method:
     - relative_consumption
-    - pressure
+    - carbon_pressure
   high_threshold:
     - 0.9
-  low_threshold:
-    - 0.7
-    
+    - 0.8
+      
 load_shape:
   scenario:
     - steady
@@ -18,3 +17,9 @@ ci_scenario:
     - fr
     - de
     - dk
+
+system:
+  test_systems:
+    - base
+    - lxcc
+    - combined

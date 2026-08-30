@@ -247,5 +247,5 @@ class DynamicLoadShape(LoadTestShape):
         if self.selected_shape is None:
             self.selected_shape = SHAPES[self.runner.environment.parsed_options.shape]()
         rps = self.selected_shape.tick(self.get_run_time())
-        scheduler.target_rps(0.0 if rps is None else rps)
+        scheduler.target_rps = 0.0 if rps is None else rps
         return None if rps is None else (1, 1, [SchedulerUser])

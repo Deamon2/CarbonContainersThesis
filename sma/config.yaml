@@ -175,6 +175,56 @@ sma:
         target:
           - all
 
+    - workflow_total:
+        type: aggregate
+        layer: global
+        query: |
+          sum(workflow_total)
+        step: 5
+        unit: requests
+        target:
+          - all
+
+    - workflow_successful_total:
+        type: aggregate
+        layer: global
+        query: |
+          sum(workflow_successful_total)
+        step: 5
+        unit: requests
+        target:
+          - all
+
+    - workflow_failed_total:
+        type: aggregate
+        layer: global
+        query: |
+          sum(workflow_failed_total)
+        step: 5
+        unit: requests
+        target:
+          - all
+
+    - workflow_computation_seconds_sum:
+        type: aggregate
+        layer: global
+        query: |
+          sum(workflow_computation_seconds_sum)
+        step: 5
+        unit: seconds
+        target:
+          - all
+
+    - workflow_computation_seconds_count:
+        type: aggregate
+        layer: global
+        query: |
+          sum(workflow_computation_seconds_count)
+        step: 5
+        unit: requests
+        target:
+          - all
+
     - process_upgrade_threshold:
         type: raw
         layer: process

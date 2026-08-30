@@ -34,25 +34,28 @@ request_semaphore = Semaphore(MAX_CONCURRENT_REQUESTS)
 admission_semaphore = Semaphore(MAX_CONCURRENT_REQUESTS + MAX_QUEUED_REQUESTS)
 
 # Schätzung der Zeitverhältnisse für unterschiedlich komplexe Antworten 
-# Target: low (10ms), medium (50ms), high (200ms)
+# Target: low (50ms), medium (100ms), high (200ms)
 # Targets: cont2 x 2, cont3 / 2
-'''
+
 COMPUTE_UNITS = {
-    "low": 7,    # in Memory / Cache lookup
-    "medium": 35,  # DB querys, API calls
+    "low": 37,    # in Memory / Cache lookup
+    "medium": 67,  # DB querys, API calls
     "high": 135, # Algorithmen + mehrerer DB queries / API calls (+ ML/DL model)
 }
-COMPUTE_UNITS = {
-    "low": 4,
-    "medium": 18,
-    "high": 68,
-}
 '''
 COMPUTE_UNITS = {
-    "low": 14,
-    "medium": 70,
+    "low": 16,
+    "medium": 36,
+    "high": 67,
+}
+
+COMPUTE_UNITS = {
+    "low": 67,
+    "medium": 135,
     "high": 270,
 }
+'''
+
 COMPUTE_MAT = np.random.default_rng(42).random((512, 512)).astype(np.float32)
 
 FLAGD_HOST = "10.0.3.1"

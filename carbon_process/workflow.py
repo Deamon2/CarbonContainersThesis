@@ -26,7 +26,7 @@ class CarbonCoordinatorWorkflow:
         self.changes: bool = False
 
 
-    def start_warmup(self, container_name: str, cycles: int = 2):
+    def start_warmup(self, container_name: str, cycles: int = 3):
         state = self.workers.get(container_name)
         if state is None:
             return

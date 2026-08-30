@@ -13,7 +13,7 @@ import urllib.request
 import uuid
 import types
 
-from parameter_sweep import build_sim_config
+from parameter_sweep import build_sim_configs
 
 VENV = "/home/thesis/venvs/thesis/bin/"
 
@@ -27,6 +27,7 @@ FLAGD_PORT = "8013"
 
 NUM_BUSINESS_PROCESS_WORKERS = 6
 
+# thressholds je nach Parameter Szenario setzen
 LXC_CONTAINERS = {
     "cont1": "0.1", 
     "cont2": "0.1", 
@@ -48,10 +49,7 @@ def load_parameter_config(path: str):
         return yaml.safe_load(f) or {}
 BASE_PARAMETER_CONFIG = load_parameter_config(os.path.join(CURRENT_DIR, "parameter_config.yaml"))
 
-RUN_SIM_CONFIG = build_sim_config(BASE_PARAMETER_CONFIG)
-LOCUST_SHAPE = RUN_SIM_CONFIG["load_shape"]["scenario"]
-
-NUM_SIMULATION_RUNS = 3
+NUM_SIMULATION_RUNS = 3  # Wiederholungen pro Parameterkombination
 RUN_GROUP_ID = f"{time.strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
 RUN_ID = None
 RUN_DIR = None
@@ -60,7 +58,7 @@ PROM_DATA_DIR = None
 RUN_SIM_CONFIG_PATH = None
 
 
-def prepare_run():
+def prepare_run(sim_config):
     global RUN_ID, RUN_DIR, LOGS_DIR, PROM_DATA_DIR, RUN_SIM_CONFIG_PATH
 
     RUN_ID = f"{time.strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
@@ -72,7 +70,7 @@ def prepare_run():
     os.makedirs(LOGS_DIR, exist_ok=True)
     os.makedirs(PROM_DATA_DIR, exist_ok=True)
     with open(RUN_SIM_CONFIG_PATH, "w") as f:
-        yaml.safe_dump(RUN_SIM_CONFIG, f, sort_keys=False)
+        yaml.safe_dump(sim_config, f, sort_keys=False)
 
 report_location = {"path": None}
 
@@ -207,7 +205,7 @@ def start_proc(name, cmd, cwd=PARENT_DIR):
 def run_monitoring():
     start_proc("prometheus", ["prometheus", f"--config.file={os.path.join(CURRENT_DIR, 'prometheus.yaml')}", f"--storage.tsdb.path={PROM_DATA_DIR}"])
     time.sleep(2)
-    start_proc("grafana", ["sudo", "grafana", "server"])
+    # start_proc("grafana", ["sudo", "grafana", "server"])
 
 def run_lxcc_services():
     start_proc("cc-records", ["sudo", f"{VENV}python", "-u", "cc-records.py", "127.0.0.1"], cwd=LXCC_CODE_DIR)
@@ -345,10 +343,10 @@ def group_reports(report_locations):
     print(f"Reports der Konfiguration liegen unter: {group_dir}")
 
 
-def run_simulation():
+def run_simulation(sim_config):
     global sma
 
-    prepare_run()
+    prepare_run(sim_config)
     report_location["path"] = None
     config = Config.from_file(os.path.join(CURRENT_DIR, "config.yaml"))
     sma = SustainabilityMeasurementAgent(config, observers=[location_observer])
@@ -359,7 +357,8 @@ def run_simulation():
 
         run_temporal()
 
-        run_carbon_workflow()
+        if sim_config["system"]["test_systems"] == "combined":
+            run_carbon_workflow()
 
         run_lxcc_services()
 
@@ -377,7 +376,7 @@ def run_simulation():
         wait_for_measurements(config)
         time.sleep(5)
 
-        run_locust(LOCUST_SHAPE)
+        # run_locust(sim_config["load_shape"]["scenario"])
 
         print("Messung wird gestartet...")
         with sma.start_session():
@@ -395,9 +394,11 @@ def run_simulation():
 sma = None
 report_locations = []
 try:
-    for simulation_number in range(1, NUM_SIMULATION_RUNS + 1):
-        print(f"Simulation {simulation_number}/{NUM_SIMULATION_RUNS}")
-        report_locations.append(run_simulation())
+    for sim_config in build_sim_configs(BASE_PARAMETER_CONFIG):
+        for simulation_number in range(1, NUM_SIMULATION_RUNS + 1):
+            print(f"Konfiguration {sim_config}")
+            print(f"Simulation {simulation_number}/{NUM_SIMULATION_RUNS}")
+            report_locations.append(run_simulation(sim_config))
 except KeyboardInterrupt:
     print("Abgebrochen. Räume Services auf...")
 finally:
