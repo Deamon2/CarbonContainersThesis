@@ -81,7 +81,7 @@ sma:
         query: |
           lxcc_current_carbon
         step: 5
-        unit: gco2_per_s
+        unit: gco2_per_UPDATE_INTERVAL
         target:
           - all
 

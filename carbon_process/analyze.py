@@ -83,7 +83,7 @@ async def analyze(workers: dict[str, WorkerState]):
             key=lambda container_name: scores[container_name],
             reverse=True
         )
-        logger.info("High Carbon (%.2f >= %.2f): candidates %s", total_carbon, high_limit, candidates)
+        logger.info("High Carbon (%.7f >= %.7f): candidates %s", total_carbon, high_limit, candidates)
         if candidates:
             results.append(AnalysisResult(
                 action="degrade",
@@ -98,7 +98,7 @@ async def analyze(workers: dict[str, WorkerState]):
             list(scores),
             key=lambda container_name: scores[container_name]
         )
-        logger.info("Low Carbon (%.2f <= %.2f): candidates %s", total_carbon, low_limit, candidates)
+        logger.info("Low Carbon (%.7f <= %.7f): candidates %s", total_carbon, low_limit, candidates)
         if candidates:
             results.append(AnalysisResult(
                 action="upgrade",
@@ -107,7 +107,7 @@ async def analyze(workers: dict[str, WorkerState]):
             ))
 
     if not results:
-        logger.info("no action needed (%.2f < %.2f < %.2f)", low_limit, total_carbon, high_limit)
+        logger.info("no action needed (%.7f < %.7f < %.7f)", low_limit, total_carbon, high_limit)
 
     try:
         from carbon_process.metrics_server import metrics

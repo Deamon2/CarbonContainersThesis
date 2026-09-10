@@ -36,7 +36,7 @@ class Metrics:
         )
         self.current_carbon = Gauge(
             "lxcc_current_carbon",
-            "Current carbon emission rate of the container in gCO2/s",
+            "Current carbon emission rate of the container in gCO2 per UPDATE_INTERVAL",
             ["container_name"],
         )
         self.suspended = Gauge(

@@ -7,6 +7,7 @@ from temporalio.worker import Worker
 
 from business_process.workflow import ProcessWorkflow
 from business_process.request import request
+from business_process.metrics_server import record_workflow_metrics
 
 
 TEMPORAL_ADDRESS = "localhost:7233"
@@ -24,7 +25,7 @@ async def main():
         client,
         task_queue=TASK_QUEUE,
         workflows=[ProcessWorkflow],
-        activities=[request],
+        activities=[request, record_workflow_metrics],
         identity=f"process-worker-{os.getpid()}",
     )
 

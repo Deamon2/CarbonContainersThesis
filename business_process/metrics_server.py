@@ -1,4 +1,5 @@
 from business_process import config
+from temporalio import activity
 from prometheus_client import Counter, Histogram, start_http_server
 
 class Metrics:
@@ -43,11 +44,6 @@ class Metrics:
             "Workflow total computation time in seconds",
             buckets=(0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10)
         )
-
-        self.workflow_total.labels()
-        self.workflow_successful_total.labels()
-        self.workflow_failed_total.labels()
-        self.workflow_computation_seconds.observe(0)
         
         modes = [
             "high",
@@ -63,9 +59,6 @@ class Metrics:
                 self.service_successful_total.labels(container_name=container, mode=mode)
                 self.service_computation_seconds.labels(container_name=container, mode=mode)
             
-
-    def update_workflow_requests(self):
-        self.workflow_total.inc()
 
     def update_workflow_successful_requests(self, total_computation_time_ms: float):
         self.workflow_successful_total.inc()
@@ -88,6 +81,18 @@ class Metrics:
 
 
 metrics = Metrics()
+
+
+@activity.defn(name="record_workflow_metrics")
+async def record_workflow_metrics(status: str, total_computation_time_ms: float = 0):
+    metrics.workflow_total.inc()
+
+    if status == "successful":
+        metrics.update_workflow_successful_requests(total_computation_time_ms)
+    elif status == "failed":
+        metrics.update_workflow_failed_requests()
+    else:
+        raise ValueError(f"Unknown workflow metrics status: {status}")
 
 base = config.PROMETHEUS_PORT
 for port in range(base, base + 100):
