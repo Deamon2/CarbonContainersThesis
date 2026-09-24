@@ -15,14 +15,19 @@ SMA is used for starting the system and generating report CSVs.
 - Not all of the commands listed actually require sudo, but many of them do.
 
 ## Installation
+Testet on Ubuntu 24.04 Noble
 
 ### LXCC
 ```bash
 sudo apt-get install lxc
-sudo apt-get install criu
+wget http://archive.ubuntu.com/ubuntu/pool/universe/c/criu/criu_3.16.1-2_amd64.deb
+sudo apt install ./criu_3.16.1-2_amd64.deb
+sudo apt install criu
 sudo apt-get install linux-tools-common
-sudo apt-get install scaphandre
-pip install -r CarbonContainers/scripte/requirementst.txt
+wget https://github.com/hubblo-org/scaphandre/releases/download/v1.0.2/scaphandre_v1.0.2-deb12_amd64.deb
+sudo apt install ./scaphandre_v1.0.2-deb12_amd64.deb
+sudo mv scaphandre /usr/local/bin/
+pip install -r CarbonContainers/scripts/requirementst.txt
 ```
 
 ### flagd
@@ -39,7 +44,7 @@ wget https://github.com/temporalio/cli/releases/download/v1.7.0/temporal_cli_1.7
 tar -xvzf temporal_cli_1.7.0_linux_amd64.tar.gz
 sudo mv temporal /usr/local/bin/
 sudo chmod +x /usr/local/bin/temporal
-pip install temporalio httpx pyyaml
+pip install temporalio httpx pyyaml pydantic
 ```
 
 ### Prometheus
@@ -53,7 +58,7 @@ sudo chmod +x /usr/local/bin/prometheus
 ### Grafana
 ```bash
 wget https://dl.grafana.com/oss/release/grafana_13.1.0_amd64.deb
-sudo dpkg -i grafana_13.1.0_amd64.deb
+sudo apt install ./grafana_13.1.0_amd64.deb
 ```
 Import `sma/per-container-dashboard.json` and `sma/process-dashboard.json` and select Prometheus `http://localhost:9090` as the data source.
 
@@ -63,7 +68,9 @@ pip install locust nest_asyncio temporalio
 ```
 
 ### SMA import + pip pydantic
-eine requierments.txt erstellen
+```bash
+pip install sustainability-measurement-agent
+```
 
 ## Configuration
 
@@ -75,10 +82,10 @@ eine requierments.txt erstellen
   ```
   This makes LXCC scaling easier to trigger. Also since containers use distinct cores they won't interfere with each other.
 - **Prometheus:** `sma/config.yaml` and `prometheus.yaml`
-- **Feature flags / container names/ filepaths:** `carbon_process/flag_config.yaml` and `business_process/flags.json`
+- **Feature flags / container names/ filepaths:** `carbon_coordinator/flag_config.yaml` and `business_process/flags.json`
 - **LXCC System Ressources, Ports, Carbon Policy values:** `CarbonContainers/code/config.py`
 - **LXCC Container tresholds:** `CarbonContainers/code/cc-client.py`
-- **Thresholds, update interval, ports:** `carbon_process/config.py`
+- **Thresholds, update interval, ports:** `carbon_coordinator/config.py`
 - **Container names and ports:** `business_process/config.py`
 - **Flags, container names, ports, filepaths:** `sma/main.py`
 - **Filepaths:** `start_lxcc_services.sh` and `start_carbon_workflow.sh`
@@ -94,6 +101,7 @@ sudo lxc-create -n cont1 -t download -- -d ubuntu -r noble -a amd64
 For **each** container:
 ```bash
 sudo cp business_process/compute.py /var/lib/lxc/cont1/rootfs/root/compute.py
+sudo lxc-start -n cont1
 sudo lxc-attach -n cont1 -- bash -lc 'apt-get update'
 sudo lxc-attach -n cont1 -- bash -lc 'apt install -y pip python3.12-venv'
 sudo lxc-attach -n cont1 -- bash -lc 'python3 -m venv venv'
@@ -167,6 +175,12 @@ Test the service, from the host or another container (find the container IP via 
 curl http://<ip>:8000/compute
 ```
 
+im sma ordner:
 
 prometheus --config.file=prometheus.yaml \
   --storage.tsdb.path=/mnt/d/thesis/CarbonContainersThesis/sma/reports/2026_07_21_17_13_11_d30782fb/prometheus_data
+
+criu wird glaube ich nicht gebraucht. checken.
+
+- cont1 und cont4 ~250ms auf 200ms kalibriert.
+- 

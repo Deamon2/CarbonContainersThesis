@@ -23,8 +23,8 @@ done
 cleanup() {
     echo ""
     echo "Stopping workflow services..."
-    sudo pkill -f "carbon_process.start_worker"   || true
-    sudo pkill -f "carbon_process.start_workflow" || true
+    sudo pkill -f "carbon_coordinator.start_worker"   || true
+    sudo pkill -f "carbon_coordinator.start_workflow" || true
     sudo pkill -f "temporal"                || true
     echo "Services stopped."
     exit 0
@@ -37,11 +37,11 @@ temporal server start-dev > "$ROOT_DIR/outputs/temporal.out" 2>&1 &
 sleep 1
 
 echo "Starting worker..."
-sudo SIM_PARAMETER_CONFIG_PATH="$SIM_PARAMETER_CONFIG_PATH" nohup $PYTHON -u -m carbon_process.start_worker > "$ROOT_DIR/outputs/carbon_worker.out" 2>&1 &
+sudo SIM_PARAMETER_CONFIG_PATH="$SIM_PARAMETER_CONFIG_PATH" nohup $PYTHON -u -m carbon_coordinator.start_worker > "$ROOT_DIR/outputs/carbon_worker.out" 2>&1 &
 sleep 1
 
 echo "Starting workflow..."
-sudo SIM_PARAMETER_CONFIG_PATH="$SIM_PARAMETER_CONFIG_PATH" nohup "$PYTHON" -u -m carbon_process.start_workflow > "$ROOT_DIR/outputs/carbon_workflow.out" 2>&1 &
+sudo SIM_PARAMETER_CONFIG_PATH="$SIM_PARAMETER_CONFIG_PATH" nohup "$PYTHON" -u -m carbon_coordinator.start_workflow > "$ROOT_DIR/outputs/carbon_coordinator.out" 2>&1 &
 echo ""
 echo "Services started. Press Ctrl+C to stop them."
 echo ""

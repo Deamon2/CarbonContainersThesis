@@ -1,4 +1,4 @@
-carbon_workflow:
+carbon_coordinator:
   score_method:
     - relative_consumption
     - carbon_pressure
@@ -15,11 +15,11 @@ load_shape:
 ci_scenario:
   region:
     - fr
-    - de
-    - dk
+#    - de
+#    - dk
 
 system:
   test_systems:
-    - base
+#    - base
     - lxcc
     - combined

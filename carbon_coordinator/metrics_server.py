@@ -1,5 +1,5 @@
-from carbon_process import config
-from carbon_process.helpers import load_flag_config
+from carbon_coordinator import config
+from carbon_coordinator.helpers import load_flag_config
 from prometheus_client import Gauge, start_http_server
 
 class Metrics:

@@ -3,7 +3,7 @@ import logging
 
 from temporalio.client import Client
 
-from carbon_process.workflow import CarbonCoordinatorWorkflow
+from carbon_coordinator.workflow import CarbonCoordinatorWorkflow
 
 TEMPORAL_ADDRESS = "localhost:7233"
 TASK_QUEUE = "feature-degradation"

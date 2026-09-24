@@ -4,11 +4,11 @@ import logging
 from temporalio.client import Client
 from temporalio.worker import Worker
 
-from carbon_process.analyze import analyze
-from carbon_process.execute import execute
-from carbon_process.workflow import CarbonCoordinatorWorkflow
-from carbon_process.plan import plan
-from carbon_process import metrics_server
+from carbon_coordinator.analyze import analyze
+from carbon_coordinator.execute import execute
+from carbon_coordinator.workflow import CarbonCoordinatorWorkflow
+from carbon_coordinator.plan import plan
+from carbon_coordinator import metrics_server
 
 TEMPORAL_ADDRESS = "localhost:7233"
 TASK_QUEUE = "feature-degradation"

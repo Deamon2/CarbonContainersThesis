@@ -4,7 +4,7 @@ import json
 import tempfile
 from temporalio import activity
 
-from carbon_process.helpers import load_flag_config, read_flags_json
+from carbon_coordinator.helpers import load_flag_config, read_flags_json
 
 logger = logging.getLogger("execute")
 
@@ -80,7 +80,7 @@ def set_flag_state(container_name: str, flag_name: str, flag_state: str):
 
 @activity.defn
 async def execute(container_name: str, flag_name: str, flag_state: str, degradation_status: float):
-    from carbon_process.metrics_server import metrics
+    from carbon_coordinator.metrics_server import metrics
 
     success = set_flag_state(container_name, flag_name, flag_state)
     if success:

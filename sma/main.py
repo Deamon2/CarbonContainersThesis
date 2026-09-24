@@ -22,19 +22,94 @@ PARENT_DIR = os.path.abspath(os.path.join(CURRENT_DIR, ".."))
 LXCC_CODE_DIR = os.path.join(PARENT_DIR, "CarbonContainers", "code")
 #FLAGD_FLAGS_URI = "file:///mnt/d/thesis/CarbonContainersThesis/business_process/flags.json"
 FLAGD_FLAGS_URI = "file:///home/thesis/CarbonContainersThesis/business_process/flags.json"
+FLAGS_PATH = os.path.join(PARENT_DIR, "business_process", "flags.json")
+DEFAULT_FLAGS_PATH = os.path.join(PARENT_DIR, "business_process", "default_flags.json")
 
 FLAGD_PORT = "8013"
 
 NUM_BUSINESS_PROCESS_WORKERS = 6
 
-# thressholds je nach Parameter Szenario setzen
-LXC_CONTAINERS = {
-    "cont1": "0.1", 
-    "cont2": "0.1", 
-    "cont3": "0.1",
-    "cont4": "0.1"
+LXCC_THRESHOLDS = {
+    "fr": {
+        "steady": {
+            "cont1": 0.0008261,
+            "cont2": 0.0016037,
+            "cont3": 0.0004384,
+            "cont4": 0.0008108,
+        },
+        "fluctuation": {
+            "cont1": 0.0007051,
+            "cont2": 0.0013663,
+            "cont3": 0.0003743,
+            "cont4": 0.0006906,
+        },
+        "spike": {
+            "cont1": 0.0003973,
+            "cont2": 0.0007751,
+            "cont3": 0.0002196,
+            "cont4": 0.0003940,
+        },
+    },
+    "de": {
+        "steady": {
+            "cont1": 0.0041641,
+            "cont2": 0.0080597,
+            "cont3": 0.0022004,
+            "cont4": 0.0040731,
+        },
+        "fluctuation": {
+            "cont1": 0.0033050,
+            "cont2": 0.0064317,
+            "cont3": 0.0017677,
+            "cont4": 0.0032807,
+        },
+        "spike": {
+            "cont1": 0.0019315,
+            "cont2": 0.0037631,
+            "cont3": 0.0017677,
+            "cont4": 0.0019059,
+        },
+    },
+    "dk": {
+        "steady": {
+            "cont1": 0.0016537,
+            "cont2": 0.0031973,
+            "cont3": 0.0008681,
+            "cont4": 0.0016232,
+        },
+        "fluctuation": {
+            "cont1": 0.0013576,
+            "cont2": 0.0026565,
+            "cont3": 0.0007303,
+            "cont4": 0.0013445,
+        },
+        "spike": {
+            "cont1": 0.0008046,
+            "cont2": 0.0015789,
+            "cont3": 0.0004497,
+            "cont4": 0.0008095,
+        },
+    },
 }
 
+LXC_CONTAINERS = ("cont1", "cont2", "cont3", "cont4")
+
+
+def get_lxcc_thresholds(sim_config):
+    if sim_config["system"]["test_systems"] == "base":
+        return { container: 1000 for container in LXC_CONTAINERS }
+
+    carbon_scenario = sim_config.get("carbon_scenario", sim_config.get("ci_scenario", {}))
+    region = carbon_scenario.get("region")
+    load_scenario = sim_config.get("load_shape", {}).get("scenario")
+
+    try:
+        return LXCC_THRESHOLDS[region][load_scenario]
+    except KeyError as error:
+        raise ValueError(
+            "Keine LXCC-Schwellenwerte für "
+            f"Region={region!r}, Lastszenario={load_scenario!r} konfiguriert."
+        ) from error
 
 # container -> flag key
 COMPUTE_SERVICES = {
@@ -227,9 +302,9 @@ def run_carbon_workflow():
     start_proc("carbon-workflow", [ "sudo", f"SIM_PARAMETER_CONFIG_PATH={RUN_SIM_CONFIG_PATH}", f"{VENV}python", "-u", "-m", "carbon_process.start_workflow" ])
     time.sleep(1)
 
-def run_lxcc_client_and_containers():
-    for container, thresh in LXC_CONTAINERS.items():
-        start_proc("cc-client", ["sudo", f"{VENV}python", "CarbonContainers/code/cc-client.py", "--name", container, "--thresh", thresh])
+def run_lxcc_client_and_containers(sim_config):
+    for container, thresh in get_lxcc_thresholds(sim_config).items():
+        start_proc("cc-client", ["sudo", f"{VENV}python", "CarbonContainers/code/cc-client.py", "--name", container, "--thresh", str(thresh)])
         start_proc(f"lxc-start-{container}", ["sudo", "lxc-start", "-n", container])
 
 def run_business_process_workers(count=NUM_BUSINESS_PROCESS_WORKERS):
@@ -239,6 +314,10 @@ def run_business_process_workers(count=NUM_BUSINESS_PROCESS_WORKERS):
 def run_flagd():
     start_proc("flagd", ["sudo", "flagd", "start", "--uri", FLAGD_FLAGS_URI, "--port", FLAGD_PORT])
     time.sleep(1)
+
+def reset_flags():
+    shutil.copyfile(DEFAULT_FLAGS_PATH, FLAGS_PATH)
+    print("flags.json wurde auf default_flags.json zurückgesetzt.")
 
 def run_compute_services():
     for container, flag_key in COMPUTE_SERVICES.items():
@@ -330,18 +409,25 @@ def finalize_run(report_location):
     print(f"Logs und Prometheus-Daten liegen unter: {report_location}\n")
 
 
-def group_reports(report_locations):
-    group_dir = os.path.abspath(os.path.join(CURRENT_DIR, "reports", RUN_GROUP_ID))
+def group_reports(sim_config, configuration_number, report_locations):
+    group_dir = os.path.abspath(os.path.join(
+        CURRENT_DIR,
+        "reports",
+        RUN_GROUP_ID,
+        f"configuration_{configuration_number:03d}",
+    ))
     os.makedirs(group_dir, exist_ok=True)
 
-    for index, report_path in enumerate(report_locations, start=1):
+    with open(os.path.join(group_dir, "parameter_config.yaml"), "w") as f:
+        yaml.safe_dump(sim_config, f, sort_keys=False)
+
+    for run_number, report_path in enumerate(report_locations, start=1):
         if not report_path or not os.path.exists(report_path):
             continue
-        target = os.path.join(group_dir, f"run_{index}_{os.path.basename(report_path)}")
+        target = os.path.join(group_dir, f"run_{run_number}_{os.path.basename(report_path)}")
         shutil.move(report_path, target)
 
     print(f"Reports der Konfiguration liegen unter: {group_dir}")
-
 
 def run_simulation(sim_config):
     global sma
@@ -362,7 +448,7 @@ def run_simulation(sim_config):
 
         run_lxcc_services()
 
-        run_lxcc_client_and_containers()
+        run_lxcc_client_and_containers(sim_config)
         time.sleep(5)
 
         run_flagd()
@@ -376,29 +462,35 @@ def run_simulation(sim_config):
         wait_for_measurements(config)
         time.sleep(5)
 
-        # run_locust(sim_config["load_shape"]["scenario"])
+        run_locust(sim_config["load_shape"]["scenario"])
 
         print("Messung wird gestartet...")
         with sma.start_session():
             sma.run(trigger=WaitForEnterTrigger())
     finally:
-        stop_all()
-        sma.teardown()
-        finalize_run(report_location["path"])
-        sma = None
-        procs.clear()
+        try:
+            stop_all()
+            sma.teardown()
+            finalize_run(report_location["path"])
+        finally:
+            reset_flags()
+            sma = None
+            procs.clear()
 
     return report_location["path"]
 
 
 sma = None
-report_locations = []
 try:
-    for sim_config in build_sim_configs(BASE_PARAMETER_CONFIG):
-        for simulation_number in range(1, NUM_SIMULATION_RUNS + 1):
-            print(f"Konfiguration {sim_config}")
-            print(f"Simulation {simulation_number}/{NUM_SIMULATION_RUNS}")
-            report_locations.append(run_simulation(sim_config))
+    for configuration_number, sim_config in enumerate(build_sim_configs(BASE_PARAMETER_CONFIG), start=1):
+        report_locations = []
+        try:
+            for simulation_number in range(1, NUM_SIMULATION_RUNS + 1):
+                print(f"Konfiguration {configuration_number}: {sim_config}")
+                print(f"Simulation {simulation_number}/{NUM_SIMULATION_RUNS}")
+                report_locations.append(run_simulation(sim_config))
+        finally:
+            group_reports(sim_config, configuration_number, report_locations)
 except KeyboardInterrupt:
     print("Abgebrochen. Räume Services auf...")
 finally:
@@ -406,4 +498,3 @@ finally:
         stop_all()
         if sma is not None:
             sma.teardown()
-    group_reports(report_locations)

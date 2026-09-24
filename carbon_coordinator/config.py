@@ -20,7 +20,7 @@ def load():
     with open(path) as f:
         raw = yaml.safe_load(f) or {}
         print(f"INFO: Konfiguration geladen: {path} ")
-    return CarbonWorkflowConfig(**raw.get("carbon_workflow", {}))
+    return CarbonWorkflowConfig(**raw.get("carbon_coordinator", {}))
 
 
 CONFIG = load()

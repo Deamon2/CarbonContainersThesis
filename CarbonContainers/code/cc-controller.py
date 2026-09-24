@@ -4,6 +4,7 @@ import subprocess
 import json
 import re
 import asyncio
+import logging
 
 from daemon3x import daemon
 
@@ -27,6 +28,9 @@ from metrics_server import metrics
 from threading import Thread
 
 
+logger = logging.getLogger(__name__)
+
+
 class Controller(controller_pb2_grpc.ControllerServicer):
 
     def __init__(self, host):
@@ -46,19 +50,19 @@ class Controller(controller_pb2_grpc.ControllerServicer):
             self.workflow_handle = self.temporal_client.get_workflow_handle(config.WORKFLOW_ID)
             return True
         except Exception as error:
-            print(f"Temporal connection failed: {error}")
+            logger.info(f"Temporal connection failed: {error}")
             self.temporal_client = None
             self.workflow_handle = None
         return False    
 
     def Migrate(self, request, context):
 
-        print("CONTS TO CHECK:")
+        logger.info("CONTS TO CHECK:")
 
         self.conts = json.loads(request.conts)
-        print(self.conts)
+        logger.info(self.conts)
 
-        print("CHECK")
+        logger.info("CHECK")
         t = Thread(target=self.control,args=() )
         t.start()
         return controller_pb2.MigrateReply(code="1")
@@ -66,7 +70,7 @@ class Controller(controller_pb2_grpc.ControllerServicer):
     def control(self):
         self.time += 1
         if len(self.conts) == 0:
-            print("nothing to do")
+            logger.info("nothing to do")
             return
         current_carbon = self.publish_carbon_intensity()
         for cont in self.conts:
@@ -98,17 +102,17 @@ class Controller(controller_pb2_grpc.ControllerServicer):
                         projected_energy_kwh = last_energy_kwh * cpu_factor
                         projected_carbon = current_carbon * projected_energy_kwh
 
-                        print(f"[{cont}] FROZEN CHECK: projected carbon {projected_carbon:.4f}, "f"resume threshold {thresh:.4f}")
+                        logger.info(f"[{cont}] FROZEN CHECK: projected carbon {projected_carbon:.7f}, "f"resume threshold {thresh:.7f}")
 
                         if freeze_cycles >= config.MAX_FROZEN_CYCLES:
-                            print(f"[{cont}] Frozen for {freeze_cycles} cycles | resume")
+                            logger.info(f"[{cont}] Frozen for {freeze_cycles} cycles | resume")
                             self.resume_container(cont)
                         elif projected_carbon < thresh:
-                            print(f"[{cont}] Carbon improved | resume")
+                            logger.info(f"[{cont}] Carbon improved | resume")
                             self.resume_container(cont)
                         else:
                             next_cycles = freeze_cycles + 1
-                            print(f"[{cont}] Keeping container frozen (cycle {next_cycles}/{config.MAX_FROZEN_CYCLES})")
+                            logger.info(f"[{cont}] Keeping container frozen (cycle {next_cycles}/{config.MAX_FROZEN_CYCLES})")
                             self.update_record_field(cont, "freeze_cycles", next_cycles)
                         continue
 
@@ -119,33 +123,33 @@ class Controller(controller_pb2_grpc.ControllerServicer):
                     # Carbon is good: scale up if possible
                     if carb <= thresh:                    
                         if cpu_percent >= 85:
-                            print(f"[{cont}] SCENARIO 2: CPU at {cpu_percent:.0f}% but carbon is acceptable: {carb:.2f} < {thresh:.2f}")
+                            logger.info(f"[{cont}] SCENARIO 2: CPU at {cpu_percent:.7f}% but carbon is acceptable: {carb:.7f} < {thresh:.7f}")
 
                             if scale_up:
-                                print(f"[{cont}] Attempt 1: Vertical scale up")
+                                logger.info(f"[{cont}] Attempt 1: Vertical scale up")
                                 self.scale_up(cont, cur_cores)
                                 self.scale_direction = "up"
                                 continue
 
-                        print(f"[{cont}] SCENARIO 1: Carbon is acceptable: {carb:.2f} < {thresh:.2f}")
+                        logger.info(f"[{cont}] SCENARIO 1: Carbon is acceptable: {carb:.7f} < {thresh:.7f}")
                         self.update_record_field(cont, "status", "running")
                         continue
 
                     # Carbon bad: scale down, migrate smaller or suspend
                     elif carb > thresh:
-                        print(f"[{cont}] SCENARIO 3: Carbon is not acceptable: {carb:.2f} > {thresh:.2f}")
+                        logger.info(f"[{cont}] SCENARIO 3: Carbon is not acceptable: {carb:.7f} > {thresh:.7f}")
 
                         if scale_down:
-                            print(f"[{cont}] Attempt 1: Vertical scale down")
+                            logger.info(f"[{cont}] Attempt 1: Vertical scale down")
                             self.scale_down(cont, cur_cores)
                             self.scale_direction = "down"
                             continue
 
-                        print(f"[{cont}] Attempt 2: NO SCALING | SUSPENDING")
+                        logger.info(f"[{cont}] Attempt 2: NO SCALING | SUSPENDING")
                         self.suspend_container(cont)
                         continue
                 finally:
-                    asyncio.run(self.send_state_update(cont, scale_direction=self.scale_direction))
+                    asyncio.run(self.send_state_update(cont))
                     self.scale_direction = None
 
 
@@ -164,7 +168,7 @@ class Controller(controller_pb2_grpc.ControllerServicer):
             resp = stub.Update(records_pb2.UpdateRequest(name=cont, value=field, setts=setts))
         return resp
     
-    async def send_state_update(self, cont, scale_direction):
+    async def send_state_update(self, cont):
         try:
             metrics.update_container(
                 container_name=cont,
@@ -179,7 +183,7 @@ class Controller(controller_pb2_grpc.ControllerServicer):
                 total_carbon=self.conts[cont]["totals"]["carbon_total"],
             )
         except Exception as error:
-            print(f"[{cont}] Updating Prometheus metrics failed: {error}")
+            logger.info(f"[{cont}] Updating Prometheus metrics failed: {error}")
 
         if not await self.ensure_temporal_connected():
             return
@@ -195,7 +199,7 @@ class Controller(controller_pb2_grpc.ControllerServicer):
         try: 
             await self.workflow_handle.signal("state_update", state)
         except Exception as error:
-            print(f"[{cont}] Sending state update to temporal failed: {error}")
+            logger.info(f"[{cont}] Sending state update to temporal failed: {error}")
 
     def suspend_container(self, cont):
         last_metrics = self.conts.get(cont, {}).get("current", {})
@@ -220,7 +224,7 @@ class Controller(controller_pb2_grpc.ControllerServicer):
             stub = records_pb2_grpc.RecordsStub(c)
             resp = stub.Update(records_pb2.UpdateRequest(name=cont, value="ALL", setts=json.dumps(frozen_state)))
         
-        print(f"[{cont}] Container is now FROZEN")
+        logger.info(f"[{cont}] Container is now FROZEN")
 
     def resume_container(self, cont):
         command = ["lxc-unfreeze", "-n", str(cont)]
@@ -229,7 +233,7 @@ class Controller(controller_pb2_grpc.ControllerServicer):
         self.update_record_field(cont, "status", "running")
         self.update_record_field(cont, "freeze_cycles", 0)
         
-        print(f"[{cont}] Container is now RUNNING")
+        logger.info(f"[{cont}] Container is now RUNNING")
 
     def build_cpuset_range(self, start_core, new_cpu, physical_cores):
         """new_cpu logische Threads ab start_core.
@@ -267,7 +271,7 @@ class Controller(controller_pb2_grpc.ControllerServicer):
             stub = records_pb2_grpc.RecordsStub(c)
             resp = stub.Update(records_pb2.UpdateRequest(name=cont, value="status", setts="running"))
 
-        print(f"[{cont}] Container has been SCALED UP")
+        logger.info(f"[{cont}] Container has been SCALED UP")
         return new_cpu
 
     def scale_down(self,cont,currentCpu):
@@ -286,7 +290,7 @@ class Controller(controller_pb2_grpc.ControllerServicer):
             stub = records_pb2_grpc.RecordsStub(c)
             resp = stub.Update(records_pb2.UpdateRequest(name=cont, value="status", setts="running"))
 
-        print(f"[{cont}] Container has been SCALED DOWN")
+        logger.info(f"[{cont}] Container has been SCALED DOWN")
         return new_cpu
     
 
