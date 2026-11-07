@@ -1,0 +1,6 @@
+grpcio==1.85.1
+grpcio-tools==1.85.1
+numpy==2.5.4
+requests==2.34.2
+prometheus-client==0.26.0
+pydantic==2.14.3

@@ -3,7 +3,7 @@ import time
 import httpx
 
 URL = "http://10.0.3.190:8000/compute"
-TIMEOUT = 3
+TIMEOUT = 2
 
 RPS = 14
 DURATION = 120

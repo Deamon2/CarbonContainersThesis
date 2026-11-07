@@ -1,3 +1,7 @@
+"""
+pip install pyyaml sustainability-measurement-agent
+"""
+
 from sma import SustainabilityMeasurementAgent, Config
 import shutil
 import yaml
@@ -16,12 +20,11 @@ import types
 from parameter_sweep import build_sim_configs
 
 VENV = "/home/thesis/venvs/thesis/bin/"
+FLAGD_FLAGS_URI = "file:///mnt/d/thesis/CarbonContainersThesis/business_process/flags.json"
 
 CURRENT_DIR = os.path.abspath(os.path.dirname(__file__))
 PARENT_DIR = os.path.abspath(os.path.join(CURRENT_DIR, ".."))
 LXCC_CODE_DIR = os.path.join(PARENT_DIR, "CarbonContainers", "code")
-#FLAGD_FLAGS_URI = "file:///mnt/d/thesis/CarbonContainersThesis/business_process/flags.json"
-FLAGD_FLAGS_URI = "file:///home/thesis/CarbonContainersThesis/business_process/flags.json"
 FLAGS_PATH = os.path.join(PARENT_DIR, "business_process", "flags.json")
 DEFAULT_FLAGS_PATH = os.path.join(PARENT_DIR, "business_process", "default_flags.json")
 
@@ -29,70 +32,71 @@ FLAGD_PORT = "8013"
 
 NUM_BUSINESS_PROCESS_WORKERS = 6
 
+LXC_CONTAINERS = ("cont1", "cont2")
+# LXC_CONTAINERS = ("cont1", "cont2", "cont3", "cont4")
+
 LXCC_THRESHOLDS = {
     "fr": {
         "steady": {
             "cont1": 0.0008261,
             "cont2": 0.0016037,
-            "cont3": 0.0004384,
-            "cont4": 0.0008108,
+#            "cont3": 0.0004384,
+#            "cont4": 0.0008108,
         },
         "fluctuation": {
             "cont1": 0.0007051,
             "cont2": 0.0013663,
-            "cont3": 0.0003743,
-            "cont4": 0.0006906,
+#            "cont3": 0.0003743,
+#            "cont4": 0.0006906,
         },
         "spike": {
             "cont1": 0.0003973,
             "cont2": 0.0007751,
-            "cont3": 0.0002196,
-            "cont4": 0.0003940,
+#            "cont3": 0.0002196,
+#            "cont4": 0.0003940,
         },
     },
     "de": {
         "steady": {
             "cont1": 0.0041641,
             "cont2": 0.0080597,
-            "cont3": 0.0022004,
-            "cont4": 0.0040731,
+#            "cont3": 0.0022004,
+#            "cont4": 0.0040731,
         },
         "fluctuation": {
             "cont1": 0.0033050,
             "cont2": 0.0064317,
-            "cont3": 0.0017677,
-            "cont4": 0.0032807,
+#            "cont3": 0.0017677,
+#            "cont4": 0.0032807,
         },
         "spike": {
             "cont1": 0.0019315,
             "cont2": 0.0037631,
-            "cont3": 0.0017677,
-            "cont4": 0.0019059,
+#            "cont3": 0.0017677,
+#            "cont4": 0.0019059,
         },
     },
     "dk": {
         "steady": {
             "cont1": 0.0016537,
             "cont2": 0.0031973,
-            "cont3": 0.0008681,
-            "cont4": 0.0016232,
+#            "cont3": 0.0008681,
+#            "cont4": 0.0016232,
         },
         "fluctuation": {
             "cont1": 0.0013576,
             "cont2": 0.0026565,
-            "cont3": 0.0007303,
-            "cont4": 0.0013445,
+#            "cont3": 0.0007303,
+#            "cont4": 0.0013445,
         },
         "spike": {
             "cont1": 0.0008046,
             "cont2": 0.0015789,
-            "cont3": 0.0004497,
-            "cont4": 0.0008095,
+#            "cont3": 0.0004497,
+#            "cont4": 0.0008095,
         },
     },
 }
-
-LXC_CONTAINERS = ("cont1", "cont2", "cont3", "cont4")
 
 
 def get_lxcc_thresholds(sim_config):
@@ -115,8 +119,8 @@ def get_lxcc_thresholds(sim_config):
 COMPUTE_SERVICES = {
     "cont1": "location",
     "cont2": "delivery",
-    "cont3": "checkout",
-    "cont4": "payment",
+#    "cont3": "checkout",
+#    "cont4": "payment",
 }
 
 def load_parameter_config(path: str):
@@ -297,9 +301,9 @@ def run_temporal():
     time.sleep(1)
 
 def run_carbon_workflow():
-    start_proc("carbon-worker", ["sudo", f"SIM_PARAMETER_CONFIG_PATH={RUN_SIM_CONFIG_PATH}", f"{VENV}python", "-u", "-m", "carbon_process.start_worker"])
+    start_proc("carbon-worker", ["sudo", f"SIM_PARAMETER_CONFIG_PATH={RUN_SIM_CONFIG_PATH}", f"{VENV}python", "-u", "-m", "carbon_coordinator.start_worker"])
     time.sleep(1)
-    start_proc("carbon-workflow", [ "sudo", f"SIM_PARAMETER_CONFIG_PATH={RUN_SIM_CONFIG_PATH}", f"{VENV}python", "-u", "-m", "carbon_process.start_workflow" ])
+    start_proc("carbon-workflow", [ "sudo", f"SIM_PARAMETER_CONFIG_PATH={RUN_SIM_CONFIG_PATH}", f"{VENV}python", "-u", "-m", "carbon_coordinator.start_workflow" ])
     time.sleep(1)
 
 def run_lxcc_client_and_containers(sim_config):
@@ -404,14 +408,14 @@ def finalize_run(report_location):
     if os.path.exists(RUN_SIM_CONFIG_PATH):
         shutil.copy2(RUN_SIM_CONFIG_PATH, os.path.join(report_location, "parameter_config.yaml"))
 
-    shutil.rmtree(RUN_DIR)  # löscht gesamtes run dir, lieber nur den run löschen?
+    shutil.rmtree(RUN_DIR)
 
     print(f"Logs und Prometheus-Daten liegen unter: {report_location}\n")
 
 
 def group_reports(sim_config, configuration_number, report_locations):
     group_dir = os.path.abspath(os.path.join(
-        CURRENT_DIR,
+        PARENT_DIR,
         "reports",
         RUN_GROUP_ID,
         f"configuration_{configuration_number:03d}",

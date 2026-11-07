@@ -60,6 +60,7 @@ if __name__ == "__main__":
         do_register("cont1", "thresh", "0.1", "running")
         do_register("cont2", "thresh", "0.1", "running")
         do_register("cont3", "thresh", "0.1", "running")
+        do_register("cont4", "thresh", "0.1", "running")
     
     # do_deregister("cont1")
     # do_start("cont1")

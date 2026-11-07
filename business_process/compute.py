@@ -1,7 +1,6 @@
 """
-Setup && Start:
-    pip install fastapi uvicorn numpy openfeature-sdk openfeature-provider-flagd
-    FLAG_KEY=delivery-mode DEFAULT_MODE=high uvicorn compute:app --host 0.0.0.0 --port 8000
+pip install fastapi uvicorn numpy openfeature-sdk openfeature-provider-flagd
+FLAG_KEY=delivery-mode DEFAULT_MODE=high /venv/bin/python -m uvicorn compute:app --host 0.0.0.0 --port 8000 --workers 3
 """
 import os
 # 1 Thread pro berechnung
@@ -35,7 +34,7 @@ admission_semaphore = Semaphore(MAX_CONCURRENT_REQUESTS + MAX_QUEUED_REQUESTS)
 
 # Schätzung der Zeitverhältnisse für unterschiedlich komplexe Antworten 
 # Target: low (50ms), medium (100ms), high (200ms)
-# Targets: cont2 x 2, cont3 / 2
+# cont2 x 2, cont3 / 2
 
 COMPUTE_UNITS = {
     "low": 37,    # in Memory / Cache lookup

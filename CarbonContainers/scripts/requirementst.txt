@@ -1,6 +1,0 @@
-grpcio
-grpcio-tools
-numpy
-requests
-prometheus-client
-pydantic

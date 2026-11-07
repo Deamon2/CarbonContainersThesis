@@ -13,7 +13,6 @@ times = []
 for _ in range(500):
     start = time.perf_counter()
     float((COMPUTE_MAT @ COMPUTE_MAT)[0, 0])
-    int(time.monotonic() * 1000)
     times.append((time.perf_counter() - start) * 1000)
 
 print(f"Per unit: {np.mean(times):.2f}ms +- {np.std(times):.2f}ms")

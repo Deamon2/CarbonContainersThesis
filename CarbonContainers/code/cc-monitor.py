@@ -4,7 +4,6 @@ import subprocess
 import time
 import json
 import re
-import math
 import traceback
 
 from energy_accumulator import EnergyAccumulator

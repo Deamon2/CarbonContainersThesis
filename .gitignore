@@ -13,8 +13,5 @@ venv.txt
 
 .vscode
 
-data
 outputs
-reports
-prometheus_data
-runs
+configuration*

@@ -1,0 +1,12 @@
+grpcio==1.85.1
+grpcio-tools==1.85.1
+numpy==2.5.4
+requests==2.34.2
+prometheus-client==0.26.0
+pydantic==2.14.3
+temporalio==1.35.0
+httpx==0.28.1
+PyYAML==6.0.3
+locust==2.47.0
+nest_asyncio==1.6.0
+sustainability-measurement-agent==0.2.1

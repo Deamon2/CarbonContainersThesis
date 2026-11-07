@@ -1,3 +1,8 @@
+'''
+pip install gevent locust temporalio
+locust -f business_process/locustfile.py --headless
+'''
+
 import asyncio
 import logging
 import queue

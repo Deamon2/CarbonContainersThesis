@@ -7,29 +7,14 @@ def smooth_step(value):
     value = clamp_value(value, 0.0, 1.0)
     return value * value * (3.0 - 2.0 * value)
 
-def triangle_pulse(value):
-    value = clamp_value(value, 0.0, 1.0)
-    return 1.0 - abs(2.0 * value - 1.0)
-
-def wave(time_value, period, amplitude, phase=0.0):
-    return amplitude * math.sin(math.tau * time_value / period + phase)
-
 def zero_mean_noise(time_value, components):
-    return sum(wave(time_value, period, amplitude, phase) for period, amplitude, phase in components)
-
-def interpolate_curve(points, position):
-    if position <= 0.0:
-        return points[0]
-    last_index = len(points) - 1
-    if position >= last_index:
-        return points[-1]
-    left_index = int(math.floor(position))
-    right_index = left_index + 1
-    fraction = position - left_index
-    return points[left_index] + (points[right_index] - points[left_index]) * fraction
+    return sum(
+        amplitude * math.sin(math.tau * time_value / period + phase)
+        for period, amplitude, phase in components
+    )
 
 
-MAX_RPS = 14.0
+MAX_RPS = 6.0
 RUN_TIME = 1800
 
 
@@ -41,16 +26,16 @@ class ConstantLoadShape:
 
 
 class SteadyLoadShape:
-    base_rps = MAX_RPS * 0.7
+    base_rps = MAX_RPS * 0.8
     min_rps = base_rps * 0.95
     max_rps = base_rps * 1.05
 
-    def tick(self, t):
-        if t >= RUN_TIME:
+    def tick(self, time):
+        if time >= RUN_TIME:
             return None
         
         noise = zero_mean_noise(
-            t,
+            time,
             [
                 (360.0, 0.045, 0.2),
                 (127.0, 0.020, 1.1),
@@ -73,12 +58,12 @@ class FluctuationLoadShape:
         (1560, 22, 0.45),
     ]
 
-    def tick(self, t):
-        if t >= RUN_TIME:
+    def tick(self, time):
+        if time >= RUN_TIME:
             return None
 
         oscillation = zero_mean_noise(
-            t,
+            time,
             [
                 (260.0, 0.34, 0.6),
                 (83.0, 0.16, 1.7),
@@ -88,8 +73,9 @@ class FluctuationLoadShape:
 
         burst = 0.0
         for start, duration, amplitude in self.burst_windows:
-            if start <= t < start + duration:
-                burst += amplitude * triangle_pulse((t - start) / duration)
+            if start <= time < start + duration:
+                progress = clamp_value((time - start) / duration, 0.0, 1.0)
+                burst += amplitude * (1.0 - abs(2.0 * progress - 1.0))
 
         rps = clamp_value(
             self.base_rps + oscillation + burst,
@@ -113,11 +99,11 @@ class SpikeLoadShape:
         (1440, 20, 50, 20, MAX_RPS * 0.92),
     ]
 
-    def tick(self, t):
-        if t >= RUN_TIME:
+    def tick(self, time):
+        if time >= RUN_TIME:
             return None
         baseline = self.baseline_rps + zero_mean_noise(
-            t,
+            time,
             [
                 (330.0, 0.05, 0.4),
                 (71.0, 0.02, 1.2),
@@ -129,16 +115,16 @@ class SpikeLoadShape:
             end_rise = start + rise
             end_hold = end_rise + hold
             end_spike = end_hold + fall
-            if start <= t < end_rise:
-                progress = (t - start) / rise
+            if start <= time < end_rise:
+                progress = (time - start) / rise
                 spike_rps = baseline + smooth_step(progress) * (peak_rps - baseline)
                 rps = max(rps, spike_rps)
                 break
-            if end_rise <= t < end_hold:
+            if end_rise <= time < end_hold:
                 rps = max(rps, peak_rps)
                 break
-            if end_hold <= t < end_spike:
-                progress = (t - end_hold) / fall
+            if end_hold <= time < end_spike:
+                progress = (time - end_hold) / fall
                 spike_rps = peak_rps - smooth_step(progress) * (peak_rps - baseline)
                 rps = max(rps, spike_rps)
                 break

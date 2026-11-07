@@ -1,20 +1,14 @@
 '''
-CONFIG FILE FOR CARBON CONTAINERS
-'''
-
-
-'''
 TEMPORAL CONFIG
 '''
 TEMPORAL_ADDRESS = "localhost:7233"
 WORKFLOW_ID = "carbon-coordinator"
 
-
+# 'cpu' an pro container verfügbare logische Cores anpassen. basierend auf physical_cores wird der smt sibling berechnet
 MIGRATION_MACHINES = {
-    "127.0.0.1": {"host": "127.0.0.1", "cpu": 3, "memGB": 32, "basepow":4000, "physical_cores": 18 }  # 'cpu' an verfügbare VM-Cores anpassen (z.B. via nproc)
+    "127.0.0.1": {"host": "127.0.0.1", "cpu": 4, "memGB": 128, "basepow":4000, "physical_cores": 8 }  
 }
 
-CO2_SIGNAL_KEY = "/users/jthiede/co2key.txt"
 
 '''
 FRONT END VALUES
@@ -44,9 +38,6 @@ CONTROLLER VALUES
 '''
 
 CONTROLLER_PORT = "1997"
-SSH_KEY_PATH = "/users/jthiede/id_rsa"
-SSH_USER = "jthiede"
-MIGRATION_PORT = 8888
 
 
 '''
@@ -68,7 +59,6 @@ PORT = 1994
 WORKING_DIR = "./"
 
 OUTPUT = "./logs/carbon"
-M_OUTPUT = "./logs/migrations"
 
 
 PROMETHEUS_PORT = 9100
@@ -127,7 +117,7 @@ def load_data():
     entries = raw.get("data", raw) if isinstance(raw, dict) else raw
 
     if not isinstance(entries, list) or len(entries) == 0:
-        raise ValueError(f"{path.name}: erwartet nicht-leere Liste von Messpunkten, bekommen: {type(entries)}")
+        raise ValueError(f"{path.name}: erwartet non empty list von Messpunkten, bekommen: {type(entries)}")
 
     simulated_window_min = SCALE * TARGET_DURATION_MIN
     needed_points = int(simulated_window_min / INTERVAL_MIN) + 1

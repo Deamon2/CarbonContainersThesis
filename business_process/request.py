@@ -55,6 +55,7 @@ def get_container_ip(container_name: str):
     name_to_ip[container_name] = ip
     return ip
 
+
 @activity.defn
 async def request(container_name: str):
     try:

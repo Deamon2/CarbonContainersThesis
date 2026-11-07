@@ -6,8 +6,6 @@ import re
 import asyncio
 import logging
 
-from daemon3x import daemon
-
 import grpc
 
 import records_pb2
@@ -27,6 +25,11 @@ from metrics_server import metrics
 
 from threading import Thread
 
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +58,7 @@ class Controller(controller_pb2_grpc.ControllerServicer):
             self.workflow_handle = None
         return False    
 
+    # main loop wird von monitor aufgerufen (hat nichts mehr mit migration zu tun lol)
     def Migrate(self, request, context):
 
         logger.info("CONTS TO CHECK:")

@@ -25,6 +25,8 @@ from concurrent import futures
 import config
 import time
 
+# unverändert zu LXCC
+
 class Records(records_pb2_grpc.RecordsServicer):
 
     def __init__(self):

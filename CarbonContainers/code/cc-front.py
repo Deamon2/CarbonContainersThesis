@@ -18,6 +18,7 @@ from concurrent import futures
 
 import config
 
+# größtenteils unverändert zu LXCC
 
 class Front(front_pb2_grpc.FrontServicer):
     def __init__(self, host):

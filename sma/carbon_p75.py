@@ -12,9 +12,8 @@ def calculate_p75(csv_path: Path):
     df["timestamp"] = pd.to_datetime(df["timestamp"])
     df = df.sort_values("timestamp")
 
-    start = df["timestamp"].min() + pd.Timedelta(minutes=1)
-    end = df["timestamp"].max() - pd.Timedelta(minutes=1)
-    df = df[(df["timestamp"] >= start) & (df["timestamp"] <= end)]
+    start = df["timestamp"].min() + pd.Timedelta(minutes=2)
+    df = df[(df["timestamp"] >= start) & (df["timestamp"] <= df["timestamp"].max())]
 
     df["current_carbon"] = pd.to_numeric(df["current_carbon"], errors="coerce")
     return df.groupby("container_name")["current_carbon"].quantile(0.75)
@@ -22,7 +21,7 @@ def calculate_p75(csv_path: Path):
 
 def main():
     if len(sys.argv) != 2:
-        raise SystemExit(f"Aufruf: python {Path(sys.argv[0]).name} <csv_oder_configuration_dir>")
+        raise SystemExit(f"Aufruf: python {Path(sys.argv[0]).name} <current_carbon.csv oder configuration_dir>")
 
     input_path = Path(sys.argv[1])
     if input_path.is_file():
