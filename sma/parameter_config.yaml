@@ -1,0 +1,25 @@
+carbon_coordinator:
+  score_method:
+#    - relative_consumption
+    - carbon_pressure
+  high_threshold:
+#    - 0.9
+    - 0.8
+      
+load_shape:
+  scenario:
+#    - steady
+    - fluctuation
+#    - spike
+    
+ci_scenario:
+  region:
+#    - fr
+    - de
+#    - dk
+
+system:
+  test_systems:
+#    - base
+#    - lxcc
+    - combined

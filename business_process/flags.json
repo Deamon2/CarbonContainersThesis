@@ -1,0 +1,41 @@
+{
+    "$schema": "https://flagd.dev/schema/v0/flags.json",
+    "flags": {
+        "location": {
+            "state": "ENABLED",
+            "variants": {
+                "high": "high",
+                "medium": "medium",
+                "low": "low"
+            },
+            "defaultVariant": "high"
+        },
+        "delivery": {
+            "state": "ENABLED",
+            "variants": {
+                "high": "high",
+                "medium": "medium",
+                "low": "low"
+            },
+            "defaultVariant": "high"
+        },
+        "checkout": {
+            "state": "ENABLED",
+            "variants": {
+                "high": "high",
+                "medium": "medium",
+                "low": "low"
+            },
+            "defaultVariant": "high"
+        },
+        "payment": {
+            "state": "ENABLED",
+            "variants": {
+                "high": "high",
+                "medium": "medium",
+                "low": "low"
+            },
+            "defaultVariant": "high"
+        }
+    }
+}

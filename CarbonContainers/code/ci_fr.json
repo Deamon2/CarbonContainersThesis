@@ -1,0 +1,84 @@
+{
+  "data": [
+    {
+      "zone": "FR",
+      "carbonIntensity": 60,
+      "datetime": "2026-06-30T00:00:00.000Z",
+      "updatedAt": "2026-07-26T07:58:37.799Z",
+      "createdAt": "2026-06-08T11:15:44.531Z",
+      "emissionFactorType": "lifecycle",
+      "isEstimated": false,
+      "estimationMethod": null
+    },
+    {
+      "zone": "FR",
+      "carbonIntensity": 60,
+      "datetime": "2026-06-30T00:05:00.000Z",
+      "updatedAt": "2026-07-26T07:58:37.799Z",
+      "createdAt": "2026-06-08T11:15:44.990Z",
+      "emissionFactorType": "lifecycle",
+      "isEstimated": false,
+      "estimationMethod": null
+    },
+    {
+      "zone": "FR",
+      "carbonIntensity": 60,
+      "datetime": "2026-06-30T00:10:00.000Z",
+      "updatedAt": "2026-07-26T07:58:37.799Z",
+      "createdAt": "2026-06-08T11:18:36.806Z",
+      "emissionFactorType": "lifecycle",
+      "isEstimated": false,
+      "estimationMethod": null
+    },
+    {
+      "zone": "FR",
+      "carbonIntensity": 60,
+      "datetime": "2026-06-30T00:15:00.000Z",
+      "updatedAt": "2026-07-26T07:58:37.799Z",
+      "createdAt": "2026-06-08T11:17:58.094Z",
+      "emissionFactorType": "lifecycle",
+      "isEstimated": false,
+      "estimationMethod": null
+    },
+    {
+      "zone": "FR",
+      "carbonIntensity": 60,
+      "datetime": "2026-06-30T00:20:00.000Z",
+      "updatedAt": "2026-07-26T07:58:37.799Z",
+      "createdAt": "2026-06-08T11:17:45.117Z",
+      "emissionFactorType": "lifecycle",
+      "isEstimated": false,
+      "estimationMethod": null
+    },
+    {
+      "zone": "FR",
+      "carbonIntensity": 60,
+      "datetime": "2026-06-30T00:25:00.000Z",
+      "updatedAt": "2026-07-26T07:58:37.799Z",
+      "createdAt": "2026-06-08T11:17:43.903Z",
+      "emissionFactorType": "lifecycle",
+      "isEstimated": false,
+      "estimationMethod": null
+    },
+    {
+      "zone": "FR",
+      "carbonIntensity": 62,
+      "datetime": "2026-06-30T00:30:00.000Z",
+      "updatedAt": "2026-07-26T07:58:37.799Z",
+      "createdAt": "2026-06-08T11:15:44.531Z",
+      "emissionFactorType": "lifecycle",
+      "isEstimated": false,
+      "estimationMethod": null
+    },
+    {
+      "zone": "FR",
+      "carbonIntensity": 62,
+      "datetime": "2026-06-30T00:35:00.000Z",
+      "updatedAt": "2026-07-26T07:58:37.799Z",
+      "createdAt": "2026-06-08T11:17:58.094Z",
+      "emissionFactorType": "lifecycle",
+      "isEstimated": false,
+      "estimationMethod": null
+    }
+  ]
+}

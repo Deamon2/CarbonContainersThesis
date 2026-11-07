@@ -1,2 +1,17 @@
 /env
 */co2key.txt
+
+__pycache__
+logs
+procOut
+
+venv.txt
+.venv 
+
+*.out
+*.test
+
+.vscode
+
+outputs
+configuration*
