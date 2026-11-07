@@ -1,6 +1,6 @@
 # Carbon-Aware Process Execution: Enhancing Process Runtimes with System- and Application-Layer Carbon Reduction Mechanisms
 
-This repository contains the prototype developed for the bachelor thesis *Carbon-Aware Process Execution: Enhancing Process Runtimes with System- and Application-Layer Carbon Reduction Mechanisms*. It combines LXCC-based container-level carbon enforcment with a Temporal-based Carbon Coordinator that degrades application feature flags through flagd when carbon pressure exceeds a configured threshold or local task worker performance requieres interventions. The prototype was evaluated with synthetic business workflows under multiple load and carbon-intensity scenarios; the repository provides the implementation, experiment orchestration, configurations, and analysis scripts. It requiers a specific execution envoirment and recalibrations before use on another system.
+This repository contains the prototype developed for the bachelor thesis *Carbon-Aware Process Execution: Enhancing Process Runtimes with System- and Application-Layer Carbon Reduction Mechanisms*. It combines LXCC-based container-level carbon enforcment with a Temporal-based Carbon Coordinator that degrades application feature flags through flagd when carbon pressure exceeds a configured threshold or local task worker performance requieres interventions. The prototype was evaluated with synthetic business workflows under multiple load and carbon-intensity scenarios; the repository provides the implementation, experiment orchestration, configurations, and analysis scripts. It requires a specific execution environment and recalibrations before use on another system.
 
 
 
@@ -29,7 +29,7 @@ This repository contains the prototype developed for the bachelor thesis *Carbon
 ├── .gitignore
 ├── ServerInfo.md
 ├── README.md
-├── CarbonContainers/           # LXCC system-level carbon enforcment
+├── CarbonContainers/           # LXCC system-level carbon enforcement
 │   ├── requirements.txt
 │   └── code/
 │       ├── cc-client.py
@@ -100,7 +100,7 @@ This repository contains the prototype developed for the bachelor thesis *Carbon
 
 - LXCC's scaling requires symmetric SMT (e.g., 8 cores and 16 threads).
 - Scaphandre requiers RAPL access so no VM support. 
-- Testet on Ubuntu 24.04 Noble and developed in Python 3.14.4.
+- Tested on Ubuntu 24.04 Noble and developed in Python 3.14.4.
 - The hardware specifications used for the evaluation are listed in ServerInfo.md.
 - Container thresholds and compute service calibration should be performed, but are not requierd for an exemplary execution.
 
@@ -168,7 +168,7 @@ The current setup uses two containers (`cont1`, `cont2`) to allow for a simpler 
 | Carbon scenarios (can) | `sma/parameter_config.yaml`, `CarbonContainers/code/ci_*.json` | Select the region and ensure that a matching carbon-intensity dataset exists. |
 | Carbon Coordinator policy (can) | `sma/parameter_config.yaml`, `carbon_coordinator/config.py` | Configure the score method, degradation threshold, and coordinator update interval. |
 | Workload scenarios (can) | `sma/parameter_config.yaml`, `business_process/locust_shapes.py` | Select `steady`, `fluctuation`, or `spike`. Scenario names must match in both files. |
-| Experiment duration (can) | `sma/config.yaml` | Set `observation.max_duration`. A experiment run can be ended by pressing Enter, the entiere Experiment can be ended by using Ctrl + C while running `sma/main.py`. |
+| Experiment duration (can) | `sma/config.yaml` | Set `observation.max_duration`. A experiment run can be ended by pressing Enter, the entire Experiment can be ended by using Ctrl + C while running `sma/main.py`. |
 | Number of repetitions (can) | `sma/main.py` | Set `NUM_SIMULATION_RUNS` to the desired number of repetitions per parameter combination. |
 | Compute-service workload (can) | `business_process/compute.py` | Adjust `COMPUTE_UNITS`, concurrency limits, and queue size based on `calculate_compute_units.py` and `calculate_rps_limit.py`. |
 | LXC network address (can) | `business_process/compute.py` | Set `FLAGD_HOST` to the host address reachable from the LXC containers. The default `10.0.3.1` assumes the standard LXC bridge configuration. |
@@ -225,8 +225,7 @@ cd sma
 sudo </absolute/path/to/venv/bin/python> main.py
 ```
 
-Each experiment run is first saved to `sma/runs` and later grouped in `reports/<report-id>`.
-The full experiment runs take ca. 81 hours (54 configurations x 3 runs x 30min per run).  
+For each configuration, three runs are performed. The log files are initially stored in `sma/runs` and, after the last run, moved to `reports/<report-id>` along with the sma CSV files, Prometheus data, and the configuration parameters used for that configuration. The full experiment runs take ca. 81 hours (54 configurations x 3 runs x 30min per run).  
 Due to the size of the folders, the raw data for this thesis is not stored in this repository, but only in the tub cloud.
 
 To view the Grafana dashboards of previous runs, start Grafana, start prometheus with the old data and select the corresponding time frame inside the Grafana dashboards:
